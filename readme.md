@@ -1,62 +1,88 @@
-Task Overview:
+🔧 Task Overview: Interactive PDF Generator Web App for Lylux
+We have been assigned a project by a lighting design company called Lylux. They provide product data in messy Excel files and previously requested an automated system to generate 50+ product datasheets (PDFs) for every possible specification combination.
 
-I have been given a task by a lighting company called Lylux. They design lights and provide product details in Excel format, but the data is completely unorganized. My task is to automate the process of converting this messy Excel data into well-formatted PDFs that look exactly like the sample output I’ve shared (a product sheet or datasheet PDF).
+After further discussion, we’ve decided to build a user-friendly web application that allows manual control and customization of datasheet generation. This approach eliminates unnecessary output and gives users flexibility to select only the combinations they care about.
 
-Key Details:
+📥 Input:
+Unorganized Excel file containing product metadata (product code, specs, certifications, images, etc.)
 
-Input:
-An Excel file containing unorganized data (like product codes, images, small certifications icons (CE, IP65), diagrams, and various specifications).
+Static assets like:
 
-Output:
-Multiple PDFs, each representing one unique combination of product specifications and customizable options.
+Product images
 
-How it Works:
+Certification logos (e.g., CE, IP65)
 
-The core output format:
-The final PDF should match the sample product datasheet design I shared.
+Dimension diagrams
 
-It includes main images (which stay the same for the same product).
+Branding elements like logo and headers
 
-Product headings, company logo, and diagrams also stay the same.
+📤 Output:
+A single PDF at a time, designed to match a sample datasheet format (provided).
 
-Dimensions stay the same (since the product is the same).
+Each PDF will reflect only the specifications and customizable options the user selects via the UI.
 
-Dynamic sections:
-The sections that change in each PDF are:
+Users will be able to dynamically configure the following:
 
-Specifications: e.g., Product Code, System Output, System Power, System Efficiency, Input Voltage, Beam Angle
+Product Code
 
-Customizable Specifications: e.g., Color Temperature, Color Finish, Cover Option, Control Option, CRI Option
+System Output / Power / Efficiency
 
-Combinations:
-For each unique combination of the customizable specifications, one unique PDF should be generated.
+Input Voltage & Beam Angle
 
-For example, if there are 50 possible combinations, I need 50 different PDFs.
+Color Temperature
 
-Each PDF only includes one specific combination, not a list of all combinations.
+Color Finish
 
-Implementation Requirements:
+Cover Option
 
-The process should automatically:
+Control Type
 
-Read the jumbled Excel data and map it to the output template.
+CRI Option
 
-Generate all possible combinations of the customizable specifications.
+🧩 Web App Features:
+Upload Section:
 
-Create one PDF for each combination, keeping the static parts (images, headings, diagrams) the same.
+Upload unorganized Excel file
 
-The final PDFs should be professionally formatted, matching the style and layout of the sample datasheet.
+Upload static assets (e.g., product images, CE/IP65 icons, diagrams)
 
-This automation can be implemented:
+Smart Mapping & Preview:
 
-In code (like Python, JavaScript, or any preferred language with PDF and Excel handling libraries).
+Map Excel fields to the correct datasheet fields
 
-Or through n8n or another no-code automation platform, with modules to read Excel data, map it, and generate PDF documents for each combination.
+Preview available product configurations
 
-Summary of Key Requirements:
+Dynamic PDF Builder:
 
-✅ Input: messy Excel file
-✅ Output: multiple well-formatted PDFs, each with one product combination
-✅ Static parts: images, main headings, diagrams, dimensions
-✅ Dynamic parts: product specifications and customizable specifications
-✅ Automation to generate every possible combination
+UI elements like dropdowns and checkboxes to select:
+
+Any combination of specifications
+
+Which attributes to include or leave blank
+
+Preview formatted PDF before download
+
+Export Option:
+
+Generate PDF using selected options
+
+Download or email the PDF directly from the app
+
+🛠 Implementation Considerations:
+Frontend Framework: React, Vue, or any UI-friendly tech stack
+
+Backend (optional): Node.js / FastAPI / Flask (for processing files, PDF rendering)
+
+PDF Generator: jsPDF, pdf-lib (JS), ReportLab (Python), or similar
+
+Excel Parser: SheetJS (JS), pandas/openpyxl (Python)
+
+Deployment: Lightweight host (e.g., Vercel, Heroku, or custom VPS)
+
+✅ Summary of Key Requirements:
+Element Description
+Input Messy Excel + images/icons
+Output One clean PDF at a time (user-selected combo)
+Static Content Headings, diagrams, logos, dimension details
+Dynamic Content All specification & customizable options selected via UI
+Goal Let user build PDFs interactively from Excel inputs — no mass generation
