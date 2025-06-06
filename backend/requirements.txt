@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+pydantic-settings
+supabase
+python-multipart
+httpx
+psycopg2-binary
+sqlalchemy
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+reportlab==4.0.4
+pillow==10.0.0
+requests==2.31.0
