@@ -1,16 +1,41 @@
-fastapi
-uvicorn[standard]
+# Core FastAPI and Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
 python-dotenv
-pydantic
-pydantic-settings
-supabase
 python-multipart
 httpx
+
+# Data Validation and Settings
+pydantic>=2.0.0
+pydantic-settings
+
+# Database - Supabase and PostgreSQL
+supabase==2.3.4
+websockets==11.0.3
 psycopg2-binary
 sqlalchemy
 alembic
+
+# Authentication and Security
 python-jose[cryptography]
 passlib[bcrypt]
+
+# HTTP Requests
+requests==2.31.0
+
+# PDF Generation - ReportLab (Existing)
 reportlab==4.0.4
 pillow==10.0.0
-requests==2.31.0
+
+# PDF Generation - HTML to PDF (NEW)
+jinja2>=3.1.0
+pyppeteer>=1.0.0
+aiofiles>=0.8.0
+
+# Optional: Enhanced PDF capabilities
+weasyprint>=60.0  # Alternative HTML to PDF engine
+pdfkit>=1.0.0     # wkhtmltopdf wrapper (if needed)
+
+# Development and Debugging (Optional)
+python-multipart
+typing-extensions>=4.0.0

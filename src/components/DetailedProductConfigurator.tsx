@@ -1,32 +1,70 @@
-// src/components/DetailedProductConfigurator.tsx
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Download, ShoppingCart, Save } from "lucide-react";
-import { apiService, ProductDetails, UserConfiguration } from "../services/api";
+import {
+  ArrowLeft,
+  Download,
+  ShoppingCart,
+  Save,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Loader,
+} from "lucide-react";
 
-interface DetailedProductConfiguratorProps {
-  productId: number;
-  onBack: () => void;
-}
+// REAL API service - Replace YOUR_BACKEND_URL with your actual backend URL
+const API_BASE_URL = "http://localhost:8000/api/products"; // Change this to your backend URL
 
-const DetailedProductConfigurator: React.FC<
-  DetailedProductConfiguratorProps
-> = ({ productId, onBack }) => {
-  const [productDetails, setProductDetails] = useState<ProductDetails | null>(
-    null
-  );
+const apiService = {
+  getProductDetails: async (productId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/product-details/${productId}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching product details:", error);
+      throw error;
+    }
+  },
+
+  saveConfiguration: async (config) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/configure/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(config),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      throw error;
+    }
+  },
+};
+
+const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
+  const [productDetails, setProductDetails] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState(null);
+
+  // NEW: Add PDF generator selection state
+  const [pdfGenerator, setPdfGenerator] = useState("html"); // 'html' or 'reportlab'
 
   // Configuration state
-  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
-    null
-  );
-  const [selectedOptions, setSelectedOptions] = useState<
-    Record<string, number>
-  >({});
-  const [selectedAccessories, setSelectedAccessories] = useState<number[]>([]);
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [currentPartCode, setCurrentPartCode] = useState<string>("");
+  const [selectedVariantId, setSelectedVariantId] = useState(null);
+  const [selectedOptions, setSelectedOptions] = useState({});
+  const [selectedAccessories, setSelectedAccessories] = useState([]);
+  const [currentPrice, setCurrentPrice] = useState(0);
+  const [currentPartCode, setCurrentPartCode] = useState("");
 
   useEffect(() => {
     loadProductDetails();
@@ -34,8 +72,7 @@ const DetailedProductConfigurator: React.FC<
 
   useEffect(() => {
     if (productDetails && selectedVariantId) {
-      // Set default options
-      const defaults: Record<string, number> = {};
+      const defaults = {};
       productDetails.configuration_categories.forEach((category) => {
         const defaultOption = category.options.find((opt) => opt.is_default);
         if (defaultOption) {
@@ -55,11 +92,15 @@ const DetailedProductConfigurator: React.FC<
   const loadProductDetails = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log(`Loading product details for product ID: ${productId}`);
+
       const data = await apiService.getProductDetails(productId);
+      console.log("Product details loaded:", data);
+
       setProductDetails(data);
 
-      // Set default variant (first one)
-      if (data.variants.length > 0) {
+      if (data.variants && data.variants.length > 0) {
         setSelectedVariantId(data.variants[0].id);
       }
     } catch (err) {
@@ -79,7 +120,10 @@ const DetailedProductConfigurator: React.FC<
     if (!selectedVariant) return;
 
     let totalPrice = selectedVariant.base_price;
-    let partCodeSuffix = "";
+    let partCodeParts = [
+      productDetails.product.base_part_code,
+      selectedVariant.part_code_suffix,
+    ];
 
     // Add option prices and build part code
     Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
@@ -90,146 +134,52 @@ const DetailedProductConfigurator: React.FC<
       if (option) {
         totalPrice += option.price_modifier;
         if (option.part_code_suffix) {
-          partCodeSuffix += `-${option.part_code_suffix}`;
+          partCodeParts.push(option.part_code_suffix);
         }
       }
     });
 
-    setCurrentPrice(totalPrice);
-    setCurrentPartCode(
-      `${productDetails.product.base_part_code}${partCodeSuffix}`
-    );
-  };
-
-  const generateDatasheetContent = () => {
-    if (!productDetails || !selectedVariantId) return "";
-
-    const selectedVariant = productDetails.variants.find(
-      (v) => v.id === selectedVariantId
-    );
-
-    const selectedOptionsDetails = Object.entries(selectedOptions).map(
-      ([categoryName, optionId]) => {
-        const category = productDetails.configuration_categories.find(
-          (cat) => cat.category_name === categoryName
-        );
-        const option = category?.options.find((opt) => opt.id === optionId);
-        return {
-          category: category?.category_label || categoryName,
-          option: option?.option_label || "Unknown",
-        };
+    // Add accessory prices
+    selectedAccessories.forEach((accId) => {
+      const accessory = productDetails.accessories.find((a) => a.id === accId);
+      if (accessory && accessory.price) {
+        totalPrice += accessory.price;
       }
-    );
+    });
 
-    const selectedAccessoriesDetails = selectedAccessories
-      .map((accId) => {
-        const accessory = productDetails.accessories.find(
-          (a) => a.id === accId
-        );
-        return accessory
-          ? {
-              id: accessory.id,
-              name: accessory.name,
-              description: accessory.description,
-              part_code: accessory.part_code,
-              price: accessory.price || 0,
-              image_url: accessory.image_url || "", // INCLUDE THIS
-              accessory_category: accessory.accessory_category || "",
-            }
-          : null;
-      })
-      .filter(Boolean);
-
-    return `
-PRODUCT DATASHEET
-================
-
-Product: ${productDetails.product.name}
-Description: ${productDetails.product.description}
-Part Code: ${currentPartCode}
-Date: ${new Date().toLocaleDateString()}
-
-SELECTED CONFIGURATION
-=====================
-
-Power Rating: ${selectedVariant?.variant_name || "Not selected"}
-${selectedVariant ? `- System Output: ${selectedVariant.system_output}lm` : ""}
-${selectedVariant ? `- System Power: ${selectedVariant.system_power}W` : ""}
-${selectedVariant ? `- Efficiency: ${selectedVariant.efficiency}lm/W` : ""}
-${
-  selectedVariant
-    ? `- Base Price: $${selectedVariant.base_price.toFixed(2)}`
-    : ""
-}
-
-CONFIGURATION OPTIONS
-====================
-${selectedOptionsDetails
-  .map((item) => `${item.category}: ${item.option}`)
-  .join("\n")}
-
-${
-  selectedAccessoriesDetails.length > 0
-    ? `
-SELECTED ACCESSORIES
-===================
-${selectedAccessoriesDetails
-  .map(
-    (acc) =>
-      `- ${acc.name} (${acc.partCode})
-  Description: ${acc.description}`
-  )
-  .join("\n\n")}
-`
-    : ""
-}
-
-${
-  productDetails.features.length > 0
-    ? `
-PRODUCT FEATURES
-===============
-${productDetails.features
-  .map((feature) => `${feature.feature_label}: ${feature.feature_value}`)
-  .join("\n")}
-`
-    : ""
-}
-
-PRICING SUMMARY
-==============
-Base Price: ${selectedVariant?.base_price.toFixed(2) || "0.00"}
-Configuration Options: ${(
-      currentPrice - (selectedVariant?.base_price || 0)
-    ).toFixed(2)}
-      
-TOTAL PRICE: ${currentPrice.toFixed(2)}
-
----
-Generated by Product Configurator
-${new Date().toLocaleString()}
-    `.trim();
+    setCurrentPrice(totalPrice);
+    setCurrentPartCode(partCodeParts.join("-"));
   };
 
-  const handleDownloadDatasheet = async () => {
+  // ENHANCED: Updated PDF download function with generator selection
+  const handleDownloadDatasheet = async (generatorType = pdfGenerator) => {
     if (!productDetails || !selectedVariantId) {
-      alert("Please select a product variant first");
+      setPdfStatus({
+        type: "error",
+        message: "Please select a product variant first",
+      });
       return;
     }
 
     try {
-      // Find the selected variant
+      setPdfGenerating(true);
+      setPdfStatus({
+        type: "info",
+        message: `Generating professional datasheet using ${
+          generatorType === "html" ? "HTML" : "ReportLab"
+        } generator...`,
+      });
+
       const selectedVariant = productDetails.variants.find(
         (v) => v.id === selectedVariantId
       );
 
       if (!selectedVariant) {
-        alert("Selected variant not found");
-        return;
+        throw new Error("Selected variant not found");
       }
 
       // Build selected options with full details for PDF
-      const selectedOptionsWithDetails: Record<string, any> = {};
+      const selectedOptionsWithDetails = {};
       Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
         const category = productDetails.configuration_categories.find(
           (cat) => cat.category_name === categoryName
@@ -256,12 +206,204 @@ ${new Date().toLocaleString()}
                 name: accessory.name,
                 description: accessory.description,
                 part_code: accessory.part_code,
+                image_url: accessory.image_url || "",
+                price: accessory.price || 0,
               }
             : null;
         })
         .filter(Boolean);
 
-      // CRITICAL FIX: Include visual_assets and product in the PDF request
+      // Build professional PDF request
+      const pdfRequest = {
+        product_name: productDetails.product.name,
+        base_part_code: productDetails.product.base_part_code,
+        final_part_code: currentPartCode,
+
+        // Convert variants to match backend model
+        variants: productDetails.variants.map((variant) => ({
+          id: variant.id,
+          variant_name: variant.variant_name,
+          system_output: variant.system_output,
+          system_power: variant.system_power,
+          efficiency: variant.efficiency,
+          base_price: variant.base_price,
+          part_code_suffix: variant.part_code_suffix || "",
+        })),
+
+        selected_variant_id: selectedVariantId,
+        selected_options: selectedOptionsWithDetails,
+        accessories: selectedAccessoriesDetails,
+
+        // Handle visual assets - check different possible structures
+        visual_assets: {
+          certifications: (
+            productDetails.visual_assets?.certifications ||
+            productDetails.visual_assets?.all_assets?.filter(
+              (asset) => asset.asset_type === "certification"
+            ) ||
+            []
+          ).map((cert) => ({
+            file_name: cert.file_name || cert.name || "certificate",
+            file_url: cert.file_url || cert.url || "",
+          })),
+        },
+
+        // Convert product to match backend model
+        product: {
+          name: productDetails.product.name || "",
+          description: productDetails.product.description || "",
+          base_part_code: productDetails.product.base_part_code || "",
+          product_image_url: productDetails.product.product_image_url || "",
+          dimension_image_url: productDetails.product.dimension_image_url || "",
+        },
+      };
+
+      // Enhanced debugging
+      console.log("=== LYLUX PDF GENERATION DEBUG ===");
+      console.log("Generator Type:", generatorType);
+      console.log("API Base URL:", API_BASE_URL);
+      console.log("Full PDF request:", JSON.stringify(pdfRequest, null, 2));
+
+      // Choose endpoint based on generator type
+      const endpoint =
+        generatorType === "html"
+          ? `${API_BASE_URL}/generate-html-datasheet`
+          : `${API_BASE_URL}/generate-professional-datasheet`;
+
+      console.log("PDF Request URL:", endpoint);
+
+      // Call the appropriate backend endpoint
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pdfRequest),
+      });
+
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
+      }
+
+      // Check if response is actually a PDF
+      const contentType = response.headers.get("content-type");
+      console.log("Response content type:", contentType);
+
+      if (!contentType || !contentType.includes("application/pdf")) {
+        const responseText = await response.text();
+        console.error("Expected PDF but got:", responseText);
+        throw new Error("Server did not return a PDF file");
+      }
+
+      // Get the PDF blob
+      const pdfBlob = await response.blob();
+      console.log("PDF blob size:", pdfBlob.size);
+
+      if (pdfBlob.size === 0) {
+        throw new Error("Received empty PDF file");
+      }
+
+      // Create download link
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const filenameSuffix =
+        generatorType === "html" ? "LYLUX_Datasheet" : "Professional_Datasheet";
+      link.setAttribute(
+        "download",
+        `${productDetails.product.name.replace(
+          /[^a-zA-Z0-9]/g,
+          "_"
+        )}_${filenameSuffix}.pdf`
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setPdfStatus({
+        type: "success",
+        message: `Professional datasheet generated successfully using ${
+          generatorType === "html" ? "HTML" : "ReportLab"
+        } generator!`,
+      });
+
+      console.log("PDF download completed successfully");
+    } catch (error) {
+      console.error("Error generating PDF datasheet:", error);
+      setPdfStatus({
+        type: "error",
+        message: `Failed to generate datasheet: ${error.message}`,
+      });
+    } finally {
+      setPdfGenerating(false);
+      setTimeout(() => setPdfStatus(null), 5000);
+    }
+  };
+
+  // NEW: Function to compare both generators
+  const handleComparePDFGenerators = async () => {
+    if (!productDetails || !selectedVariantId) {
+      setPdfStatus({
+        type: "error",
+        message: "Please select a product variant first",
+      });
+      return;
+    }
+
+    try {
+      setPdfGenerating(true);
+      setPdfStatus({
+        type: "info",
+        message: "Comparing PDF generators...",
+      });
+
+      // Build the same request structure
+      const selectedVariant = productDetails.variants.find(
+        (v) => v.id === selectedVariantId
+      );
+
+      const selectedOptionsWithDetails = {};
+      Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
+        const category = productDetails.configuration_categories.find(
+          (cat) => cat.category_name === categoryName
+        );
+        const option = category?.options.find((opt) => opt.id === optionId);
+        if (option && category) {
+          selectedOptionsWithDetails[category.category_label] = {
+            option_label: option.option_label,
+            price_modifier: option.price_modifier,
+            part_code_suffix: option.part_code_suffix || "",
+          };
+        }
+      });
+
+      const selectedAccessoriesDetails = selectedAccessories
+        .map((accId) => {
+          const accessory = productDetails.accessories.find(
+            (a) => a.id === accId
+          );
+          return accessory
+            ? {
+                id: accessory.id,
+                name: accessory.name,
+                description: accessory.description,
+                part_code: accessory.part_code,
+                image_url: accessory.image_url || "",
+                price: accessory.price || 0,
+              }
+            : null;
+        })
+        .filter(Boolean);
+
       const pdfRequest = {
         product_name: productDetails.product.name,
         base_part_code: productDetails.product.base_part_code,
@@ -278,84 +420,77 @@ ${new Date().toLocaleString()}
         selected_variant_id: selectedVariantId,
         selected_options: selectedOptionsWithDetails,
         accessories: selectedAccessoriesDetails,
-        // CRITICAL: Include visual_assets and product data
-        visual_assets: productDetails.visual_assets || {},
-        product: productDetails.product || {},
+        visual_assets: {
+          certifications: (
+            productDetails.visual_assets?.certifications ||
+            productDetails.visual_assets?.all_assets?.filter(
+              (asset) => asset.asset_type === "certification"
+            ) ||
+            []
+          ).map((cert) => ({
+            file_name: cert.file_name || cert.name || "certificate",
+            file_url: cert.file_url || cert.url || "",
+          })),
+        },
+        product: {
+          name: productDetails.product.name || "",
+          description: productDetails.product.description || "",
+          base_part_code: productDetails.product.base_part_code || "",
+          product_image_url: productDetails.product.product_image_url || "",
+          dimension_image_url: productDetails.product.dimension_image_url || "",
+        },
       };
 
-      // Enhanced debugging
-      console.log("=== FRONTEND PDF REQUEST DEBUG ===");
-      console.log("Full PDF request:", pdfRequest);
-      console.log("Visual assets being sent:", pdfRequest.visual_assets);
-      console.log(
-        "Certifications being sent:",
-        pdfRequest.visual_assets?.certifications
-      );
-      console.log(
-        "Number of certifications:",
-        pdfRequest.visual_assets?.certifications?.length || 0
-      );
-
-      // Log each certification
-      if (pdfRequest.visual_assets?.certifications) {
-        pdfRequest.visual_assets.certifications.forEach((cert, i) => {
-          console.log(`Frontend cert ${i}:`, cert);
-        });
-      }
-
-      // Call the backend PDF generation endpoint
-      const response = await fetch(
-        "http://localhost:8000/api/products/generate-datasheet",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(pdfRequest),
-        }
-      );
+      // Call the comparison endpoint
+      const response = await fetch(`${API_BASE_URL}/compare-pdf-generators`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pdfRequest),
+      });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `HTTP error! status: ${response.status}, message: ${errorText}`
-        );
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Get the PDF blob
-      const pdfBlob = await response.blob();
+      const comparisonResults = await response.json();
+      console.log("PDF Generator Comparison Results:", comparisonResults);
 
-      // Create download link
-      const url = window.URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute(
-        "download",
-        `${productDetails.product.name.replace(
-          /[^a-zA-Z0-9]/g,
-          "_"
-        )}_datasheet.pdf`
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      console.log("PDF download completed successfully");
+      // Show results to user
+      setPdfStatus({
+        type: "success",
+        message: `Comparison complete! ${comparisonResults.comparison_results.recommendation}. Check console for details.`,
+        details: `HTML: ${
+          comparisonResults.comparison_results.html.success
+            ? "Success"
+            : "Failed"
+        }, ReportLab: ${
+          comparisonResults.comparison_results.reportlab.success
+            ? "Success"
+            : "Failed"
+        }`,
+      });
     } catch (error) {
-      console.error("Error generating PDF datasheet:", error);
-      alert(`Failed to generate PDF datasheet: ${error.message}`);
+      console.error("Error comparing PDF generators:", error);
+      setPdfStatus({
+        type: "error",
+        message: `Failed to compare generators: ${error.message}`,
+      });
+    } finally {
+      setPdfGenerating(false);
+      setTimeout(() => setPdfStatus(null), 5000);
     }
   };
 
-  const handleOptionChange = (categoryName: string, optionId: number) => {
+  const handleOptionChange = (categoryName, optionId) => {
     setSelectedOptions((prev) => ({
       ...prev,
       [categoryName]: optionId,
     }));
   };
 
-  const handleAccessoryToggle = (accessoryId: number) => {
+  const handleAccessoryToggle = (accessoryId) => {
     setSelectedAccessories((prev) =>
       prev.includes(accessoryId)
         ? prev.filter((id) => id !== accessoryId)
@@ -366,7 +501,7 @@ ${new Date().toLocaleString()}
   const handleSaveConfiguration = async () => {
     if (!selectedVariantId) return;
 
-    const configuration: UserConfiguration = {
+    const configuration = {
       product_id: productId,
       variant_id: selectedVariantId,
       selected_options: selectedOptions,
@@ -376,33 +511,124 @@ ${new Date().toLocaleString()}
 
     try {
       await apiService.saveConfiguration(configuration);
-      alert("Configuration saved successfully!");
+      setPdfStatus({
+        type: "success",
+        message: "Configuration saved successfully!",
+      });
+      setTimeout(() => setPdfStatus(null), 3000);
     } catch (err) {
       console.error("Error saving configuration:", err);
-      alert("Failed to save configuration");
+      setPdfStatus({ type: "error", message: "Failed to save configuration" });
+      setTimeout(() => setPdfStatus(null), 3000);
     }
+  };
+
+  // NEW: PDF Generator Selection Component
+  const PDFGeneratorSelector = () => (
+    <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+      <h4 className="text-sm font-medium text-blue-900 mb-3">PDF Generator</h4>
+      <div className="space-y-2">
+        <label className="flex items-center">
+          <input
+            type="radio"
+            name="pdfGenerator"
+            value="html"
+            checked={pdfGenerator === "html"}
+            onChange={(e) => setPdfGenerator(e.target.value)}
+            className="mr-2"
+          />
+          <span className="text-sm text-blue-800">
+            <strong>HTML Generator</strong> - Modern layout, faster generation
+          </span>
+        </label>
+        <label className="flex items-center">
+          <input
+            type="radio"
+            name="pdfGenerator"
+            value="reportlab"
+            checked={pdfGenerator === "reportlab"}
+            onChange={(e) => setPdfGenerator(e.target.value)}
+            className="mr-2"
+          />
+          <span className="text-sm text-blue-800">
+            <strong>ReportLab Generator</strong> - Precise layout, advanced
+            features
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+
+  // ENHANCED: PDF Status Component with details
+  const EnhancedPDFStatus = ({ pdfStatus }) => {
+    if (!pdfStatus) return null;
+
+    const getStatusIcon = () => {
+      switch (pdfStatus.type) {
+        case "success":
+          return <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />;
+        case "error":
+          return <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />;
+        case "info":
+          return <Loader className="w-5 h-5 mr-3 flex-shrink-0 animate-spin" />;
+        default:
+          return null;
+      }
+    };
+
+    const getStatusClass = () => {
+      switch (pdfStatus.type) {
+        case "success":
+          return "bg-green-50 text-green-800 border border-green-200";
+        case "error":
+          return "bg-red-50 text-red-800 border border-red-200";
+        case "info":
+          return "bg-blue-50 text-blue-800 border border-blue-200";
+        default:
+          return "bg-gray-50 text-gray-800 border border-gray-200";
+      }
+    };
+
+    return (
+      <div className={`flex items-center p-4 rounded-lg ${getStatusClass()}`}>
+        {getStatusIcon()}
+        <div className="flex-1">
+          <span className="font-medium">{pdfStatus.message}</span>
+          {pdfStatus.details && (
+            <div className="text-sm mt-1 opacity-75">{pdfStatus.details}</div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="text-xl text-gray-600">Loading product details...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex justify-center items-center">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <div className="text-xl text-slate-600">
+            Loading product details...
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error || !productDetails) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50 flex justify-center items-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <div className="text-red-600 text-xl mb-4">
             {error || "Product not found"}
           </div>
           <button
             onClick={onBack}
-            className="text-blue-600 hover:text-blue-800"
+            className="text-blue-600 hover:text-blue-800 flex items-center mx-auto"
           >
-            ← Back to Product Types
+            <ArrowLeft size={16} className="mr-2" />
+            Back to Product Types
           </button>
         </div>
       </div>
@@ -414,29 +640,39 @@ ${new Date().toLocaleString()}
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Professional Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <button
             onClick={onBack}
-            className="flex items-center text-[#D4B88C] hover:text-[#B8966F] mb-4 transition-colors"
+            className="flex items-center text-blue-600 hover:text-blue-800 mb-6 transition-colors group"
           >
-            <ArrowLeft size={20} className="mr-2" />
+            <ArrowLeft
+              size={20}
+              className="mr-2 group-hover:-translate-x-1 transition-transform"
+            />
             Back to Product Types
           </button>
+
           <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-light text-gray-900 mb-2">
-                {productDetails.product.name}
-              </h1>
-              <p className="text-gray-600 max-w-2xl">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-3">
+                <h1 className="text-4xl font-light text-slate-900">
+                  {productDetails.product.name}
+                </h1>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  Professional Series
+                </span>
+              </div>
+              <p className="text-slate-600 max-w-2xl text-lg leading-relaxed">
                 {productDetails.product.description}
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500 mb-1">Part Code</div>
-              <div className="font-mono text-lg font-medium text-gray-900 bg-gray-100 px-3 py-1 rounded">
+
+            <div className="text-right bg-slate-50 p-4 rounded-lg">
+              <div className="text-sm text-slate-500 mb-2">Part Code</div>
+              <div className="font-mono text-xl font-semibold text-slate-900 bg-white px-4 py-2 rounded border">
                 {currentPartCode || "Select options..."}
               </div>
             </div>
@@ -444,75 +680,98 @@ ${new Date().toLocaleString()}
         </div>
       </div>
 
+      {/* ENHANCED: Status Messages */}
+      {pdfStatus && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <EnhancedPDFStatus pdfStatus={pdfStatus} />
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Configuration Panel */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-3 space-y-8">
             {/* Power Rating Selection */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-xl font-medium text-gray-900 mb-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  1
+                </span>
                 Select Power Rating
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {productDetails.variants.map((variant) => (
                   <button
                     key={variant.id}
                     onClick={() => setSelectedVariantId(variant.id)}
-                    className={`p-6 border-2 rounded-lg text-center transition-all ${
+                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
                       selectedVariantId === variant.id
-                        ? "border-[#D4B88C] bg-[#D4B88C]/10"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-blue-500 bg-blue-50 shadow-lg scale-105"
+                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
                     }`}
                   >
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-2xl font-bold text-slate-900 mb-2">
                       {variant.variant_name}
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {variant.system_output}lm | {variant.system_power}W
+                    <div className="text-sm text-slate-600 space-y-1">
+                      <div>{variant.system_output} lumens</div>
+                      <div>{variant.system_power}W power</div>
+                      <div>Efficiency: {variant.efficiency} lm/W</div>
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      Efficiency: {variant.efficiency}lm/W
-                    </div>
-                    <div className="text-lg font-semibold text-[#D4B88C] mt-2">
+                    <div className="text-2xl font-bold text-blue-600 mt-4">
                       ${variant.base_price.toFixed(2)}
                     </div>
+                    {selectedVariantId === variant.id && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-6 h-6 text-blue-500" />
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Configuration Options */}
-            {productDetails.configuration_categories.map((category) => (
+            {productDetails.configuration_categories?.map((category, index) => (
               <div
                 key={category.id}
-                className="bg-white rounded-lg shadow-sm border p-6"
+                className="bg-white rounded-xl shadow-sm border border-slate-200 p-8"
               >
-                <h3 className="text-xl font-medium text-gray-900 mb-6">
+                <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                  <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                    {index + 2}
+                  </span>
                   {category.category_label}
                   {category.is_required && (
-                    <span className="text-red-500 ml-1">*</span>
+                    <span className="text-red-500 ml-2 text-lg">*</span>
                   )}
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {category.options.map((option) => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {category.options?.map((option) => (
                     <button
                       key={option.id}
                       onClick={() =>
                         handleOptionChange(category.category_name, option.id)
                       }
-                      className={`p-4 border-2 rounded-lg text-center transition-all ${
+                      className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
                         selectedOptions[category.category_name] === option.id
-                          ? "border-[#D4B88C] bg-[#D4B88C]/10"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-blue-500 bg-blue-50 shadow-lg"
+                          : "border-slate-200 hover:border-slate-300 hover:shadow-md"
                       }`}
                     >
-                      <div className="font-medium text-gray-900">
+                      <div className="text-lg font-semibold text-slate-900 mb-2">
                         {option.option_label}
                       </div>
                       {option.price_modifier !== 0 && (
-                        <div className="text-sm text-[#D4B88C] font-medium mt-1">
+                        <div className="text-sm font-medium text-blue-600">
                           {option.price_modifier > 0 ? "+" : ""}$
                           {option.price_modifier.toFixed(2)}
+                        </div>
+                      )}
+                      {selectedOptions[category.category_name] ===
+                        option.id && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="w-5 h-5 text-blue-500" />
                         </div>
                       )}
                     </button>
@@ -522,33 +781,39 @@ ${new Date().toLocaleString()}
             ))}
 
             {/* Accessories */}
-            {productDetails.accessories.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-xl font-medium text-gray-900 mb-6">
+            {productDetails.accessories?.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                  <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                    {(productDetails.configuration_categories?.length || 0) + 2}
+                  </span>
                   Optional Accessories
                 </h3>
                 <div className="space-y-4">
                   {productDetails.accessories.map((accessory) => (
                     <label
                       key={accessory.id}
-                      className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                      className="group flex items-center space-x-6 p-6 border-2 border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-md cursor-pointer transition-all duration-200"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedAccessories.includes(accessory.id)}
-                        onChange={() => handleAccessoryToggle(accessory.id)}
-                        className="h-5 w-5 text-[#D4B88C] rounded focus:ring-[#D4B88C]"
-                      />
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={selectedAccessories.includes(accessory.id)}
+                          onChange={() => handleAccessoryToggle(accessory.id)}
+                          className="w-6 h-6 text-blue-600 border-2 border-slate-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        {selectedAccessories.includes(accessory.id) && (
+                          <CheckCircle className="w-6 h-6 text-blue-500 absolute inset-0" />
+                        )}
+                      </div>
 
-                      {/* Add accessory image */}
                       {accessory.image_url && (
-                        <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                        <div className="w-20 h-16 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden">
                           <img
                             src={accessory.image_url}
                             alt={accessory.name}
                             className="max-w-full max-h-full object-contain"
                             onError={(e) => {
-                              // Hide image if it fails to load
                               e.currentTarget.style.display = "none";
                             }}
                           />
@@ -556,20 +821,22 @@ ${new Date().toLocaleString()}
                       )}
 
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">
+                        <div className="text-lg font-semibold text-slate-900 mb-1">
                           {accessory.name}
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-slate-600 mb-2">
                           {accessory.description}
                         </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          Part: {accessory.part_code}
-                        </div>
-                        {accessory.price && (
-                          <div className="text-sm text-[#D4B88C] font-medium">
-                            ${accessory.price.toFixed(2)}
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-slate-500">
+                            Part: {accessory.part_code}
                           </div>
-                        )}
+                          {accessory.price && (
+                            <div className="text-lg font-semibold text-blue-600">
+                              ${accessory.price.toFixed(2)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </label>
                   ))}
@@ -578,21 +845,21 @@ ${new Date().toLocaleString()}
             )}
 
             {/* Product Features */}
-            {productDetails.features.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-xl font-medium text-gray-900 mb-6">
-                  Product Features
+            {productDetails.features?.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <h3 className="text-2xl font-semibold text-slate-900 mb-6">
+                  Technical Specifications
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {productDetails.features.map((feature) => (
                     <div
                       key={feature.id}
-                      className="flex justify-between py-2 border-b border-gray-100 last:border-b-0"
+                      className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-lg"
                     >
-                      <span className="text-gray-600">
+                      <span className="text-slate-600 font-medium">
                         {feature.feature_label}:
                       </span>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-semibold text-slate-900">
                         {feature.feature_value}
                       </span>
                     </div>
@@ -602,25 +869,26 @@ ${new Date().toLocaleString()}
             )}
           </div>
 
-          {/* Summary Panel */}
+          {/* ENHANCED: Professional Summary Panel with Dual PDF Generators */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border p-6 sticky top-8">
-              <h3 className="text-xl font-medium text-gray-900 mb-6">
+            <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 sticky top-8">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-blue-600" />
                 Configuration Summary
               </h3>
 
-              <div className="space-y-4 mb-6">
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Product:</span>
-                  <span className="font-medium text-gray-900">
+              <div className="space-y-4 mb-8">
+                <div className="flex justify-between py-3 border-b border-slate-100">
+                  <span className="text-slate-600 font-medium">Product:</span>
+                  <span className="font-semibold text-slate-900 text-right text-sm">
                     {productDetails.product.name}
                   </span>
                 </div>
 
                 {selectedVariant && (
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Power:</span>
-                    <span className="font-medium text-gray-900">
+                  <div className="flex justify-between py-3 border-b border-slate-100">
+                    <span className="text-slate-600 font-medium">Power:</span>
+                    <span className="font-semibold text-slate-900">
                       {selectedVariant.variant_name}
                     </span>
                   </div>
@@ -629,10 +897,10 @@ ${new Date().toLocaleString()}
                 {Object.entries(selectedOptions).map(
                   ([categoryName, optionId]) => {
                     const category =
-                      productDetails.configuration_categories.find(
+                      productDetails.configuration_categories?.find(
                         (cat) => cat.category_name === categoryName
                       );
-                    const option = category?.options.find(
+                    const option = category?.options?.find(
                       (opt) => opt.id === optionId
                     );
 
@@ -641,12 +909,12 @@ ${new Date().toLocaleString()}
                     return (
                       <div
                         key={categoryName}
-                        className="flex justify-between py-2 border-b border-gray-100"
+                        className="flex justify-between py-3 border-b border-slate-100"
                       >
-                        <span className="text-gray-600">
+                        <span className="text-slate-600 font-medium">
                           {category?.category_label}:
                         </span>
-                        <span className="font-medium text-gray-900">
+                        <span className="font-semibold text-slate-900">
                           {option.option_label}
                         </span>
                       </div>
@@ -656,18 +924,24 @@ ${new Date().toLocaleString()}
 
                 {selectedAccessories.length > 0 && (
                   <div className="pt-2">
-                    <div className="text-sm font-medium text-gray-900 mb-2">
+                    <div className="text-sm font-semibold text-slate-900 mb-3">
                       Accessories:
                     </div>
                     {selectedAccessories.map((accId) => {
-                      const acc = productDetails.accessories.find(
+                      const acc = productDetails.accessories?.find(
                         (a) => a.id === accId
                       );
                       return acc ? (
-                        <div key={accId} className="py-1">
-                          <span className="text-sm text-gray-600">
+                        <div
+                          key={accId}
+                          className="py-2 px-3 bg-slate-50 rounded mb-2"
+                        >
+                          <span className="text-sm text-slate-700 font-medium">
                             {acc.name}
                           </span>
+                          <div className="text-xs text-slate-500">
+                            ${acc.price?.toFixed(2)}
+                          </div>
                         </div>
                       ) : null;
                     })}
@@ -675,34 +949,144 @@ ${new Date().toLocaleString()}
                 )}
               </div>
 
-              <div className="border-t pt-6 mb-6">
+              <div className="border-t border-slate-200 pt-6 mb-8">
                 <div className="flex justify-between text-2xl font-bold">
-                  <span className="text-gray-900">Total:</span>
-                  <span className="text-[#D4B88C]">
+                  <span className="text-slate-900">Total:</span>
+                  <span className="text-blue-600">
                     ${currentPrice.toFixed(2)}
                   </span>
                 </div>
+                <div className="text-sm text-slate-500 mt-1">
+                  Excluding taxes and shipping
+                </div>
               </div>
 
+              {/* ENHANCED: Action Buttons with Dual PDF Support */}
               <div className="space-y-3">
                 <button
                   onClick={handleSaveConfiguration}
-                  className="w-full bg-[#D4B88C] text-white py-3 px-4 rounded-lg hover:bg-[#B8966F] transition-colors flex items-center justify-center"
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium shadow-sm"
                 >
                   <Save size={18} className="mr-2" />
                   Save Configuration
                 </button>
-                <button className="w-full border-2 border-[#D4B88C] text-[#D4B88C] py-3 px-4 rounded-lg hover:bg-[#D4B88C] hover:text-white transition-colors flex items-center justify-center">
+
+                <button className="w-full border-2 border-blue-600 text-blue-600 py-3 px-4 rounded-lg hover:bg-blue-600 hover:text-white transition-colors flex items-center justify-center font-medium">
                   <ShoppingCart size={18} className="mr-2" />
                   Request Quote
                 </button>
+
+                {/* NEW: PDF Generator Selection */}
+                <PDFGeneratorSelector />
+
+                {/* ENHANCED: Main PDF Download Button */}
                 <button
-                  onClick={handleDownloadDatasheet}
-                  className="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center"
+                  onClick={() => handleDownloadDatasheet()}
+                  disabled={pdfGenerating}
+                  className="w-full border border-slate-300 text-slate-700 py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Download size={18} className="mr-2" />
-                  Download Datasheet
+                  {pdfGenerating ? (
+                    <Loader size={18} className="mr-2 animate-spin" />
+                  ) : (
+                    <Download size={18} className="mr-2" />
+                  )}
+                  {pdfGenerating
+                    ? "Generating..."
+                    : `Download ${
+                        pdfGenerator === "html" ? "LYLUX" : "Professional"
+                      } Datasheet`}
                 </button>
+
+                {/* NEW: Quick Download Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleDownloadDatasheet("html")}
+                    disabled={pdfGenerating}
+                    className="text-xs py-2 px-3 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
+                  >
+                    Quick HTML
+                  </button>
+                  <button
+                    onClick={() => handleDownloadDatasheet("reportlab")}
+                    disabled={pdfGenerating}
+                    className="text-xs py-2 px-3 bg-purple-50 text-purple-700 border border-purple-200 rounded hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  >
+                    Quick ReportLab
+                  </button>
+                </div>
+
+                {/* NEW: Developer Tools (only show in development) */}
+                {process.env.NODE_ENV === "development" && (
+                  <details className="mt-4">
+                    <summary className="text-xs text-slate-500 cursor-pointer">
+                      Developer Tools
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      <button
+                        onClick={handleComparePDFGenerators}
+                        disabled={pdfGenerating}
+                        className="w-full text-xs py-2 px-3 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors disabled:opacity-50"
+                      >
+                        Compare Generators
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(
+                              `${API_BASE_URL}/pdf-generator/health-detailed`
+                            );
+                            const health = await response.json();
+                            console.log("PDF Generator Health:", health);
+                            setPdfStatus({
+                              type: "info",
+                              message: `Health check: ${health.overall_status}. Check console for details.`,
+                            });
+                          } catch (error) {
+                            console.error("Health check failed:", error);
+                            setPdfStatus({
+                              type: "error",
+                              message:
+                                "Health check failed. Check console for details.",
+                            });
+                          }
+                          setTimeout(() => setPdfStatus(null), 3000);
+                        }}
+                        className="w-full text-xs py-2 px-3 bg-gray-50 text-gray-700 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        Health Check
+                      </button>
+                    </div>
+                  </details>
+                )}
+              </div>
+
+              {/* NEW: PDF Generator Information Panel */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <strong>
+                    {pdfGenerator === "html"
+                      ? "HTML Generator"
+                      : "ReportLab Generator"}{" "}
+                    Features:
+                  </strong>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {pdfGenerator === "html" ? (
+                      <>
+                        <li>• Modern LYLUX branding</li>
+                        <li>• Fast generation</li>
+                        <li>• Responsive design</li>
+                        <li>• Web-standard fonts</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• Technical specifications</li>
+                        <li>• Photometric data</li>
+                        <li>• Certification details</li>
+                        <li>• Professional layout</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -712,4 +1096,4 @@ ${new Date().toLocaleString()}
   );
 };
 
-export default DetailedProductConfigurator;
+export default EnhancedProductConfigurator;

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Datasheet - {{product_name}}</title>
+    <style>
+        /* Professional PDF Styling for LYLUX */
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            background: white;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #2B4C7E;
+        }
+
+        .company-logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-text {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 4px;
+            color: #2B4C7E;
+            margin-right: 15px;
+        }
+
+        .tagline {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .product-category {
+            background: #4A7C59;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .date-info {
+            font-size: 10px;
+            color: #666;
+            text-align: right;
+        }
+
+        .product-title {
+            font-size: 24px;
+            font-weight: 300;
+            margin: 20px 0 15px 0;
+            color: #1A1A1A;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .product-description {
+            font-size: 11px;
+            margin-bottom: 25px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            margin: 25px 0;
+        }
+
+        .left-column {
+            flex: 1.2;
+        }
+
+        .right-column {
+            flex: 0.8;
+            text-align: center;
+        }
+
+        .section-header {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 20px 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: white;
+            background: #2B4C7E;
+            padding: 8px 12px;
+            border-radius: 3px;
+        }
+
+        .subsection-header {
+            font-size: 12px;
+            font-weight: 600;
+            margin: 15px 0 8px 0;
+            color: #1A1A1A;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 3px;
+        }
+
+        .part-code {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 10px 0;
+            color: #2B4C7E;
+            font-family: 'Courier New', monospace;
+        }
+
+        .emergency-code {
+            font-size: 11px;
+            color: #4A7C59;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* LYLUX Style - Clean Specifications Table */
+        .spec-table {
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .spec-row:last-child {
+            border-bottom: none;
+        }
+
+        .spec-label {
+            font-weight: 500;
+            color: #333;
+            flex: 1;
+        }
+
+        .spec-value {
+            font-weight: 600;
+            color: #1A1A1A;
+            text-align: right;
+            min-width: 100px;
+        }
+
+        .config-section {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #2B4C7E;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+
+        .config-item:last-child {
+            border-bottom: none;
+        }
+
+        .config-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .config-value {
+            font-weight: 600;
+            color: #1A1A1A;
+        }
+
+        .product-visual {
+            background: #f8f8f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .product-image {
+            max-width: 200px;
+            height: auto;
+            margin: 10px 0;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+        }
+
+        .dimension-drawing {
+            max-width: 180px;
+            height: auto;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .polar-chart {
+            width: 160px;
+            height: 160px;
+            margin: 15px auto;
+            border: 2px solid #2B4C7E;
+            border-radius: 50%;
+            position: relative;
+            background: linear-gradient(45deg, #f8f8f8 25%, transparent 25%), 
+                        linear-gradient(-45deg, #f8f8f8 25%, transparent 25%);
+            background-size: 20px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .beam-angle-display {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2B4C7E;
+        }
+
+        .certifications {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 15px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .cert-badge {
+            width: 40px;
+            height: 30px;
+            background: #4A7C59;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 600;
+        }
+
+        .cert-image {
+            max-width: 40px;
+            max-height: 30px;
+            object-fit: contain;
+        }
+
+        .accessories-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .accessory-item {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            background: #fafafa;
+        }
+
+        .accessory-name {
+            font-weight: 600;
+            color: #1A1A1A;
+            margin-bottom: 5px;
+            font-size: 10px;
+        }
+
+        .accessory-part {
+            font-size: 9px;
+            color: #666;
+            font-family: 'Courier New', monospace;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+        }
+
+        .company-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .performance-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .performance-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2B4C7E;
+            margin-bottom: 3px;
+        }
+
+        .performance-label {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #2B4C7E 0%, #4A7C59 100%);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+
+        .highlight-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .highlight-text {
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
+        /* Print optimizations */
+        @media print {
+            body {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Professional Header -->
+    <header class="header">
+        <div class="company-logo">
+            <div class="logo-text">LYLUX</div>
+            <div class="tagline">Lighting Your Future</div>
+        </div>
+        <div class="product-category">DOWNLIGHT</div>
+        <div class="date-info">
+            Date: {{date}}<br>
+            Technical Datasheet
+        </div>
+    </header>
+
+    <!-- Product Title -->
+    <h1 class="product-title">{{product_name}}</h1>
+    <p class="product-description">
+        High-efficiency LED downlight featuring advanced thermal management and premium aluminum construction for superior performance and longevity.
+    </p>
+
+    <!-- Main Content Layout -->
+    <div class="main-content">
+        <!-- Left Column -->
+        <div class="left-column">
+            <!-- Product Code Section -->
+            <section>
+                <h2 class="section-header">Product Part Code</h2>
+                <div class="part-code">{{final_part_code}}</div>
+                <div class="emergency-code">Emergency Option: Available on request</div>
+            </section>
+
+            <!-- Selected Configuration -->
+            <section>
+                <h2 class="section-header">Selected Configuration</h2>
+                <div class="config-section">
+                    {% for category, option_data in selected_options.items() %}
+                    <div class="config-item">
+                        <span class="config-label">{{category}}:</span>
+                        <span class="config-value">
+                            {% if option_data is mapping %}
+                                {{option_data.option_label}}
+                            {% else %}
+                                {{option_data}}
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <!-- Technical Specifications -->
+            <section>
+                <h2 class="section-header">Technical Specifications</h2>
+                <div class="spec-table">
+                    <div class="spec-row">
+                        <span class="spec-label">System Output</span>
+                        <span class="spec-value">{{selected_variant.system_output}}lm</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">System Power</span>
+                        <span class="spec-value">{{selected_variant.system_power}}W</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Luminous Efficacy</span>
+                        <span class="spec-value">{{selected_variant.efficiency}}lm/W</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Beam Angle</span>
+                        <span class="spec-value">{{beam_angle}}°</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Color Temperature</span>
+                        <span class="spec-value">{{color_temperature}}</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">CRI</span>
+                        <span class="spec-value">≥{{cri}}</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">IP Rating</span>
+                        <span class="spec-value">{{ip_rating}}</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Operating Temperature</span>
+                        <span class="spec-value">-20°C to +50°C</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Rated Life</span>
+                        <span class="spec-value">50,000 hours</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Body Material</span>
+                        <span class="spec-value">Aluminum</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Cut-out Diameter</span>
+                        <span class="spec-value">Ø50mm</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Height</span>
+                        <span class="spec-value">52.8mm</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Performance Highlights -->
+            <section>
+                <h2 class="section-header">Performance Data</h2>
+                <div class="performance-grid">
+                    <div class="performance-card">
+                        <div class="performance-value">{{selected_variant.system_output}}</div>
+                        <div class="performance-label">Lumens Output</div>
+                    </div>
+                    <div class="performance-card">
+                        <div class="performance-value">{{selected_variant.efficiency}}</div>
+                        <div class="performance-label">Efficacy (lm/W)</div>
+                    </div>
+                    <div class="performance-card">
+                        <div class="performance-value">≥{{cri}}</div>
+                        <div class="performance-label">Color Rendering</div>
+                    </div>
+                    <div class="performance-card">
+                        <div class="performance-value">50K+</div>
+                        <div class="performance-label">Rated Hours</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Certifications & Compliance -->
+            <section>
+                <h2 class="section-header">Certifications & Standards</h2>
+                <div class="certifications">
+                    {% if visual_assets.certifications %}
+                        {% for cert in visual_assets.certifications %}
+                        <img src="{{cert.file_url}}" alt="{{cert.file_name}}" class="cert-image">
+                        {% endfor %}
+                    {% else %}
+                        <div class="cert-badge">CE</div>
+                        <div class="cert-badge">RoHS</div>
+                        <div class="cert-badge">IP65</div>
+                        <div class="cert-badge">LM80</div>
+                    {% endif %}
+                </div>
+                <div class="highlight-box">
+                    <div class="highlight-title">Quality Assurance</div>
+                    <div class="highlight-text">
+                        • CE Marking - EU Conformity<br>
+                        • RoHS Compliant - Lead Free<br>
+                        • LM-80 LED Life Testing<br>
+                        • 5-year limited warranty
+                    </div>
+                </div>
+            </section>
+
+            <!-- Accessories -->
+            {% if accessories %}
+            <section>
+                <h2 class="section-header">Selected Accessories</h2>
+                <div class="accessories-grid">
+                    {% for accessory in accessories %}
+                    <div class="accessory-item">
+                        <div class="accessory-name">{{accessory.name}}</div>
+                        <div class="accessory-part">{{accessory.part_code}}</div>
+                        {% if accessory.price %}
+                        <div style="font-size: 10px; color: #2B4C7E; font-weight: 600; margin-top: 3px;">
+                            ${{accessory.price}}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Product Visual -->
+            <section class="product-visual">
+                <h3 class="subsection-header">Product Image</h3>
+                {% if product.product_image_url %}
+                <img src="{{product.product_image_url}}" alt="{{product_name}}" class="product-image">
+                {% else %}
+                <div style="padding: 40px; color: #666; font-size: 14px;">
+                    ⚡<br>
+                    High-Efficiency<br>
+                    LED Downlight
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- Dimensions -->
+            <section class="product-visual">
+                <h3 class="subsection-header">Dimensions (mm)</h3>
+                {% if product.dimension_image_url %}
+                <img src="{{product.dimension_image_url}}" alt="Technical Drawing" class="dimension-drawing">
+                {% else %}
+                <div style="padding: 30px; color: #666; font-size: 12px;">
+                    📐<br>
+                    Technical Drawing<br>
+                    Ø50mm cut-out<br>
+                    52.8mm height
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- Light Distribution -->
+            <section class="product-visual">
+                <h3 class="subsection-header">Light Distribution</h3>
+                <div class="polar-chart">
+                    <div class="beam-angle-display">{{beam_angle}}°</div>
+                </div>
+                <div style="font-size: 10px; color: #666; margin-top: 10px;">
+                    Beam angle: {{beam_angle}}°<br>
+                    Distribution: Symmetrical<br>
+                    IES files available
+                </div>
+            </section>
+
+            <!-- Control Options -->
+            <section class="product-visual">
+                <h3 class="subsection-header">Control & Dimming</h3>
+                <div style="text-align: left; font-size: 10px; color: #333; line-height: 1.5;">
+                    <strong>Available Controls:</strong><br>
+                    • Non-Dimmable<br>
+                    • DALI (Digital control)<br>
+                    • 0-10V (Analog dimming)<br>
+                    • Phase cut dimming<br><br>
+                    <strong>Dimming Range:</strong><br>
+                    Smooth 1-100% dimming<br>
+                    Flicker-free operation
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="company-info">
+            <span>© 2024 LYLUX Group | Technical Datasheet</span>
+            <span>{{website}} | {{email}}</span>
+        </div>
+    </footer>
+</body>
+</html>

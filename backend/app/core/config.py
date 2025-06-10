@@ -1,22 +1,21 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+import os
 
 class Settings(BaseSettings):
-    # Database
-    database_url: str
+    # Database settings
+    supabase_url: str = "https://ijhthgduecrvuwnukzcg.supabase.co"
+    supabase_key: str = "your-supabase-key-here"
     
-    # Supabase
-    supabase_url: str
-    supabase_anon_key: str
-    supabase_service_role_key: str
+    # API settings
+    api_title: str = "Lylux Product Configurator API"
+    api_version: str = "1.0.0"
     
-    # Security
-    secret_key: str
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    environment: str = "development"
-
-    class Config:
-        env_file = ".env"
+    # CORS settings
+    allowed_origins: list = ["http://localhost:3000", "http://localhost:5173"]
+    
+    model_config = {
+        "env_file": ".env",
+        "extra": "allow"  # This allows extra fields from .env
+    }
 
 settings = Settings()
