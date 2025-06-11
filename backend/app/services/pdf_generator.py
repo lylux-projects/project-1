@@ -1,1134 +1,887 @@
 # backend/app/services/pdf_generator.py
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import mm, inch
-from reportlab.lib.colors import HexColor, white, black, grey
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.graphics.shapes import Drawing, Circle, Line, Rect
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics import renderPDF
-from io import BytesIO
+import subprocess
+import tempfile
 import os
-import requests
-from typing import Dict, List, Any
-from PIL import Image as PILImage
+import shutil
+from io import BytesIO
+from typing import Dict, Any
+from datetime import datetime
 
 class DatasheetGenerator:
-    def __init__(self):
-        self.width, self.height = A4
-        self.margin = 15 * mm
-        self.styles = getSampleStyleSheet()
-        self.setup_custom_styles()
-    
-    def setup_custom_styles(self):
-        """Setup custom paragraph styles matching the target design"""
+    def __init__(self):  # FIXED: Changed from _init_ to __init__
+        self.java_path = "java"
+        self.jar_path = os.path.join(os.path.dirname(__file__), "..", "..", "lib")
+        # ALL THREE JAR FILES - Windows classpath format
+        self.classpath = f"{self.jar_path}\\flying-saucer-core-9.1.22.jar;{self.jar_path}\\flying-saucer-pdf-itext5-9.1.22.jar;{self.jar_path}\\itextpdf-5.5.13.1.jar"
         
-        # Product title style
-        self.styles.add(ParagraphStyle(
-            name='ProductTitle',
-            parent=self.styles['Heading1'],
-            fontSize=28,
-            textColor=black,
-            spaceAfter=8,
-            fontName='Helvetica-Bold',
-            alignment=TA_LEFT,
-            leftIndent=0
-        ))
-        
-        # Section headers (dark grey background)
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
-            parent=self.styles['Normal'],
-            fontSize=11,
-            textColor=white,
-            backColor=HexColor('#505050'),
-            fontName='Helvetica-Bold',
-            leftIndent=8,
-            rightIndent=8,
-            spaceBefore=2,
-            spaceAfter=2,
-            leading=16
-        ))
-        
-        # Clean section headers (enhanced from first snippet)
-        self.styles.add(ParagraphStyle(
-            name='CleanSectionHeader',
-            parent=self.styles['Normal'],
-            fontSize=12,
-            textColor=white,
-            backColor=HexColor('#424242'),
-            fontName='Helvetica-Bold',
-            leftIndent=10,
-            rightIndent=10,
-            spaceBefore=3,
-            spaceAfter=3,
-            leading=18
-        ))
-        
-        # Subsection headers (black background)
-        self.styles.add(ParagraphStyle(
-            name='SubSectionHeader',
-            parent=self.styles['Normal'],
-            fontSize=10,
-            textColor=white,
-            backColor=HexColor('#2C2C2C'),
-            fontName='Helvetica-Bold',
-            leftIndent=6,
-            rightIndent=6,
-            spaceBefore=2,
-            spaceAfter=2,
-            leading=14
-        ))
-        
-        # Small text for certifications
-        self.styles.add(ParagraphStyle(
-            name='SmallText',
-            parent=self.styles['Normal'],
-            fontSize=8,
-            textColor=black,
-            fontName='Helvetica',
-            leading=10
-        ))
-        
-        # Checkbox style
-        self.styles.add(ParagraphStyle(
-            name='CheckboxText',
-            parent=self.styles['Normal'],
-            fontSize=9,
-            textColor=black,
-            fontName='Helvetica',
-            leading=12
-        ))
-    
     def generate_datasheet(self, product_data: Dict[str, Any]) -> BytesIO:
-        """Generate optimized single-page datasheet"""
-        print(f"=== PDF GENERATOR DEBUG ===")
-        print(f"Product data keys: {list(product_data.keys())}")
-        
-        # Debug visual assets thoroughly
-        visual_assets = product_data.get('visual_assets', {})
-        print(f"Visual assets type: {type(visual_assets)}")
-        print(f"Visual assets: {visual_assets}")
-        
-        if visual_assets:
-            certifications = visual_assets.get('certifications', [])
-            print(f"Certifications in generator: {len(certifications)} items")
-            for i, cert in enumerate(certifications):
-                print(f"  Generator cert {i}: {cert}")
-        else:
-            print("ERROR: No visual_assets in PDF generator!")
-        
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=A4,
-            rightMargin=self.margin,
-            leftMargin=self.margin,
-            topMargin=self.margin,
-            bottomMargin=15*mm  # Reduced bottom margin for more space
-        )
-        
-        story = []
-        
-        # SINGLE PAGE - All content optimized for one page
-        story.extend(self._create_single_page_layout(product_data))
-        
-        doc.build(story, onFirstPage=self._add_header_footer, onLaterPages=self._add_header_footer)
-        buffer.seek(0)
-        return buffer
-
-    def _create_single_page_layout(self, product_data: Dict[str, Any]) -> List:
-        """Create optimized single page layout with all content fitting properly"""
-        elements = []
-        
-        # Top header with LYLUX and DOWNLIGHT
-        elements.extend(self._create_exact_header())
-        
-        # Product name with less spacing
-        product_name = product_data.get('product_name', 'Regulus Alpha')
-        elements.append(Paragraph(product_name, self.styles['ProductTitle']))
-        elements.append(Spacer(1, 4*mm))  # Reduced spacing
-        
-        # Three column section - Product info | Certifications | Dimensions (using enhanced version)
-        elements.extend(self._create_main_info_section_with_images(product_data))
-        
-        # SPECIFICATIONS section with compact layout
-        elements.extend(self._create_compact_specifications_section(product_data))
-        
-        # CUSTOMIZABLE SPECIFICATIONS section (only selected items) - more compact
-        elements.extend(self._create_compact_customizable_section(product_data))
-        
-        # LIGHT DISTRIBUTION section - compact version
-        elements.extend(self._create_compact_light_distribution_section())
-        
-        # Only add accessories if they exist and space permits
-        accessories = product_data.get('accessories', [])
-        if accessories and len(accessories) <= 3:  # Only show if few accessories
-            elements.extend(self._create_compact_accessories_section(accessories))
-        
-        return elements
-    
-    def _create_exact_header(self) -> List:
-        """Create exact header matching target design with better proportions"""
-        elements = []
-        
-        # Header table with LYLUX logo and DOWNLIGHT badge
-        header_data = [
-            [
-                # LYLUX logo section (black background)
-                Paragraph('<b><font size="14" color="white">LYLUX</font></b><br/>'
-                         '<font size="7" color="white">LIGHTING YOUR FUTURE</font>', 
-                         self.styles['Normal']),
-                
-                # Empty spacer
-                '',
-                
-                # DOWNLIGHT badge (green background)
-                Paragraph('<b><font size="11">DOWNLIGHT</font></b>', 
-                         ParagraphStyle(
-                             name='DownlightBadge',
-                             fontSize=11,
-                             textColor=white,
-                             backColor=HexColor('#8BC34A'),
-                             alignment=TA_CENTER,
-                             fontName='Helvetica-Bold',
-                             leftIndent=6,
-                             rightIndent=6,
-                             spaceBefore=4,
-                             spaceAfter=4,
-                             leading=16,
-                             wordWrap='LTR'
-                         ))
-            ]
-        ]
-        
-        header_table = Table(header_data, colWidths=[70*mm, 85*mm, 45*mm])
-        header_table.setStyle(TableStyle([
-            # LYLUX section styling
-            ('BACKGROUND', (0, 0), (0, 0), HexColor('#2C2C2C')),
-            ('ALIGN', (0, 0), (0, 0), 'CENTER'),
-            ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+        """Generate PHOS-quality PDF using Flying Saucer"""
+        try:
+            print(f"=== Flying Saucer PDF Generator START ===")
+            print(f"Product: {product_data.get('product_name', 'Unknown')}")
             
-            # DOWNLIGHT section styling  
-            ('BACKGROUND', (2, 0), (2, 0), HexColor('#8BC34A')),
-            ('ALIGN', (2, 0), (2, 0), 'CENTER'),
-            ('VALIGN', (2, 0), (2, 0), 'MIDDLE'),
-            
-            # General styling
-            ('PADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        
-        elements.append(header_table)
-        elements.append(Spacer(1, 8*mm))  # Reduced spacing
-        
-        return elements
-    
-    def _create_main_info_section_with_images(self, product_data: Dict[str, Any]) -> List:
-        """Create clean, professional main section with properly organized images (enhanced version)"""
-        elements = []
-        
-        print(f"=== MAIN INFO SECTION DEBUG ===")
-        
-        # Get product data
-        product = product_data.get('product', {})
-        product_image_url = product.get('product_image_url', '')
-        print(f"Product image URL: {product_image_url}")
-        
-        # Get visual assets
-        visual_assets = product_data.get('visual_assets', {})
-        print(f"Visual assets in main section: {visual_assets}")
-        
-        certifications = visual_assets.get('certifications', [])
-        print(f"Certifications in main section: {len(certifications)} items")
-        
-        # Create three well-organized columns
-        main_data = [
-            [
-                # Column 1: Product image - clean and centered
-                self._create_clean_product_image_cell(product_image_url),
-                
-                # Column 2: Certifications - organized in a clean grid
-                self._create_clean_certifications_cell(certifications),
-                
-                # Column 3: Dimensions - clean technical drawing
-                self._create_clean_dimensions_cell(product_data)
+            # Check ALL JAR files exist
+            required_jars = [
+                "flying-saucer-core-9.1.22.jar",
+                "flying-saucer-pdf-itext5-9.1.22.jar", 
+                "itextpdf-5.5.13.1.jar"
             ]
-        ]
-        
-        main_table = Table(main_data, colWidths=[60*mm, 70*mm, 55*mm])
-        main_table.setStyle(TableStyle([
-            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#DDDDDD')),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('PADDING', (0, 0), (-1, -1), 8),
-            ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
-            ('LEFTPADDING', (0, 0), (-1, -1), 10),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ]))
-        
-        elements.append(main_table)
-        elements.append(Spacer(1, 6*mm))
-        
-        return elements
-
-    def _create_clean_product_image_cell(self, image_url: str):
-        """Create a clean, centered product image cell"""
-        if image_url and image_url.startswith(('http://', 'https://')):
+            
+            for jar in required_jars:
+                jar_path = os.path.join(self.jar_path, jar)
+                if not os.path.exists(jar_path):
+                    raise Exception(f"Missing JAR file: {jar}. Please download it to {self.jar_path}")
+                print(f"✓ {jar} found")
+            
+            # Create perfect PHOS-style HTML
+            html_content = self._create_phos_style_html(product_data)
+            
+            # Create temporary files
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as html_file:
+                html_file.write(html_content)
+                html_file_path = html_file.name
+            
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as pdf_file:
+                pdf_file_path = pdf_file.name
+            
             try:
-                # Try to download and embed the actual image with better sizing
-                img = self._download_image(image_url, max_width=50*mm, max_height=40*mm)
-                if img:
-                    # Center the image in a clean layout
-                    img_data = [
-                        [Paragraph('<b>PRODUCT</b>', ParagraphStyle(
-                            name='ProductHeader',
-                            fontSize=9,
-                            textColor=HexColor('#333333'),
-                            fontName='Helvetica-Bold',
-                            alignment=TA_CENTER,
-                            spaceAfter=4
-                        ))],
-                        [img],
-                        [Paragraph('<i>High-efficiency LED downlight</i>', ParagraphStyle(
-                            name='ProductCaption',
-                            fontSize=7,
-                            textColor=HexColor('#666666'),
-                            fontName='Helvetica',
-                            alignment=TA_CENTER,
-                            leading=8
-                        ))]
-                    ]
+                # Generate PDF using Flying Saucer Java process
+                self._generate_pdf_with_java(html_file_path, pdf_file_path)
+                
+                # Read generated PDF
+                with open(pdf_file_path, 'rb') as f:
+                    pdf_data = f.read()
+                
+                if len(pdf_data) == 0:
+                    raise Exception("Generated PDF file is empty")
+                
+                pdf_buffer = BytesIO(pdf_data)
+                print(f"✅ PHOS-style PDF generated successfully ({len(pdf_data)} bytes)")
+                return pdf_buffer
+                
+            finally:
+                # Cleanup temporary files
+                if os.path.exists(html_file_path):
+                    os.unlink(html_file_path)
+                if os.path.exists(pdf_file_path):
+                    os.unlink(pdf_file_path)
                     
-                    img_table = Table(img_data, colWidths=[50*mm])
-                    img_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                        ('PADDING', (0, 0), (-1, -1), 2),
-                    ]))
-                    return img_table
-                else:
-                    return self._create_fallback_product_cell()
-            except Exception as e:
-                print(f"Error processing product image: {e}")
-                return self._create_fallback_product_cell()
-        else:
-            return self._create_fallback_product_cell()
-
-    def _create_fallback_product_cell(self):
-        """Create fallback product cell with clean text"""
-        return Paragraph('<b>PRODUCT</b><br/><br/>'
-                       'High-efficiency LED downlight<br/>'
-                       'Premium aluminium construction<br/>'
-                       'Advanced thermal management<br/>'
-                       'Multiple beam options available', 
-                       ParagraphStyle(
-                           name='ProductFallback',
-                           fontSize=8,
-                           textColor=HexColor('#333333'),
-                           fontName='Helvetica',
-                           alignment=TA_CENTER,
-                           leading=10
-                       ))
-
-    def _create_clean_certifications_cell(self, certifications: List[Dict]) -> object:
-        """Create clean, organized certifications cell"""
-        print(f"=== CLEAN CERTIFICATIONS CELL ===")
-        print(f"Received certifications: {len(certifications) if certifications else 0}")
+        except Exception as e:
+            print(f"❌ ERROR in Flying Saucer PDF generator: {str(e)}")
+            raise e
+    
+    def _generate_pdf_with_java(self, html_file: str, pdf_file: str):
+        """Generate PDF using Java Flying Saucer with explicit font loading"""
         
-        if not certifications:
-            return self._create_fallback_certifications_cell()
+        # Create a properly named temporary directory
+        temp_dir = tempfile.mkdtemp()
+        java_file_path = os.path.join(temp_dir, "PDFGen.java")
+        
+        # Get absolute path to fonts directory
+        fonts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "fonts"))
+        
+        # Debug: Check if fonts directory exists and list files
+        print(f"=== FONT LOADING DEBUG ===")
+        print(f"Fonts directory: {fonts_dir}")
+        print(f"Directory exists: {os.path.exists(fonts_dir)}")
+        
+        if os.path.exists(fonts_dir):
+            font_files = os.listdir(fonts_dir)
+            print(f"Font files found: {font_files}")
+            
+            # Find YuGothic font files
+            yugothic_fonts = [f for f in font_files if 'YuGoth' in f]
+            print(f"YuGothic fonts: {yugothic_fonts}")
+        else:
+            print("Fonts directory not found!")
+        
+        # Convert Windows path separators to forward slashes for Java
+        fonts_dir_java = fonts_dir.replace("\\", "/")
+        
+        # Java class with correct Flying Saucer font registration
+        java_class = f'''import org.xhtmlrenderer.pdf.ITextRenderer;
+    import java.io.*;
+    import java.nio.file.Files;
+    import java.nio.file.Paths;
+
+    class PDFGen {{
+        public static void main(String[] args) {{
+            try {{
+                String htmlFile = args[0];
+                String pdfFile = args[1];
+                
+                String htmlContent = new String(Files.readAllBytes(Paths.get(htmlFile)), "UTF-8");
+                
+                ITextRenderer renderer = new ITextRenderer();
+                
+                // CRITICAL: Register fonts with the correct method signature
+                String fontsDir = "{fonts_dir_java}";
+                System.out.println("Fonts directory: " + fontsDir);
+                
+                try {{
+                    // Register each font file separately 
+                    String regularFont = fontsDir + "/YuGothR.ttc";
+                    if (new File(regularFont).exists()) {{
+                        renderer.getFontResolver().addFont(regularFont, true);
+                        System.out.println("✓ YuGothic Regular registered");
+                    }}
+                    
+                    String boldFont = fontsDir + "/YuGothB.ttc";
+                    if (new File(boldFont).exists()) {{
+                        renderer.getFontResolver().addFont(boldFont, true);
+                        System.out.println("✓ YuGothic Bold registered");
+                    }}
+                    
+                    String mediumFont = fontsDir + "/YuGothM.ttc";
+                    if (new File(mediumFont).exists()) {{
+                        renderer.getFontResolver().addFont(mediumFont, true);
+                        System.out.println("✓ YuGothic Medium registered");
+                    }}
+                    
+                    String lightFont = fontsDir + "/YuGothL.ttc";
+                    if (new File(lightFont).exists()) {{
+                        renderer.getFontResolver().addFont(lightFont, true);
+                        System.out.println("✓ YuGothic Light registered");
+                    }}
+                    
+                    System.out.println("Font registration completed - ready to generate PDF");
+                    
+                }} catch (Exception fontError) {{
+                    System.err.println("Font registration failed: " + fontError.getMessage());
+                    fontError.printStackTrace();
+                }}
+                
+                System.out.println("Font registration completed. Proceeding with PDF generation...");
+                
+                // Enable high quality rendering
+                renderer.getSharedContext().setPrint(true);
+                renderer.getSharedContext().setInteractive(false);
+                renderer.getSharedContext().getTextRenderer().setSmoothingThreshold(0);
+                
+                renderer.setDocumentFromString(htmlContent);
+                renderer.layout();
+                
+                FileOutputStream fos = new FileOutputStream(pdfFile);
+                renderer.createPDF(fos);
+                fos.close();
+                
+                System.out.println("PDF_SUCCESS");
+                
+            }} catch (Exception e) {{
+                System.err.println("PDF_ERROR: " + e.getMessage());
+                e.printStackTrace();
+                System.exit(1);
+            }}
+        }}
+    }}'''
         
         try:
-            # Create header
-            cert_elements = []
-            cert_elements.append([Paragraph('<b>CERTIFICATIONS</b>', ParagraphStyle(
-                name='CertHeader',
-                fontSize=9,
-                textColor=HexColor('#333333'),
-                fontName='Helvetica-Bold',
-                alignment=TA_CENTER,
-                spaceAfter=4
-            ))])
+            # Write Java file
+            with open(java_file_path, 'w', encoding='utf-8') as f:
+                f.write(java_class)
             
-            # Create a 2x2 grid for certification images (max 4 certs)
-            cert_images = []
-            cert_names = []
+            print(f"Created Java file: {java_file_path}")
             
-            for i, cert in enumerate(certifications[:4]):  # Limit to 4 for clean layout
-                cert_url = cert.get('file_url', '')
-                cert_name = cert.get('file_name', f'Cert_{i}')
-                
-                if cert_url and cert_url.startswith(('http://', 'https://')):
-                    cert_img = self._download_image(cert_url, max_width=20*mm, max_height=15*mm)
-                    if cert_img:
-                        cert_images.append(cert_img)
-                        continue
-                
-                # Fallback to clean text badge
-                cert_display_name = cert_name.replace('-', '').replace('.png', '').upper()
-                cert_badge = Paragraph(f'<b>{cert_display_name[:4]}</b>', ParagraphStyle(
-                    name='CertBadge',
-                    fontSize=7,
-                    textColor=white,
-                    fontName='Helvetica-Bold',
-                    alignment=TA_CENTER,
-                    backColor=HexColor('#4CAF50'),
-                    leftIndent=2,
-                    rightIndent=2,
-                    spaceBefore=2,
-                    spaceAfter=2
-                ))
-                cert_images.append(cert_badge)
-            
-            # Arrange certifications in a clean 2x2 grid
-            if len(cert_images) >= 2:
-                # First row
-                row1 = cert_images[:2]
-                if len(row1) == 1:
-                    row1.append('')  # Fill empty cell
-                cert_elements.append(row1)
-                
-                # Second row if needed
-                if len(cert_images) > 2:
-                    row2 = cert_images[2:4]
-                    if len(row2) == 1:
-                        row2.append('')  # Fill empty cell
-                    cert_elements.append(row2)
-            else:
-                # Single certification centered
-                cert_elements.append([cert_images[0] if cert_images else '', ''])
-            
-            # Add footer text
-            cert_elements.append(['', ''])  # Spacer row
-            cert_elements.append([Paragraph('<b>Rated Life:</b> 50,000 Hrs<br/>'
-                                          '<b>Operating Temp:</b> -20°C to 50°C<br/>'
-                                          '<b>Material:</b> Aluminium Body', 
-                                          ParagraphStyle(
-                                              name='CertDetails',
-                                              fontSize=7,
-                                              textColor=HexColor('#666666'),
-                                              fontName='Helvetica',
-                                              alignment=TA_LEFT,
-                                              leading=8
-                                          )), ''])
-            
-            cert_table = Table(cert_elements, colWidths=[35*mm, 35*mm])
-            cert_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('PADDING', (0, 0), (-1, -1), 2),
-                ('SPAN', (0, 0), (1, 0)),  # Span header across both columns
-                ('SPAN', (0, -1), (1, -1)),  # Span footer across both columns
-            ]))
-            
-            return cert_table
-            
-        except Exception as e:
-            print(f"Error creating clean certifications: {e}")
-            return self._create_fallback_certifications_cell()
-
-    def _create_fallback_certifications_cell(self):
-        """Create fallback certifications cell"""
-        return Paragraph('<b>CERTIFICATIONS</b><br/><br/>'
-                       '<b>CE</b> ✓ | <b>RoHS</b> ✓<br/><br/>'
-                       '<b>Rated Life:</b> 50,000 Hrs<br/>'
-                       '<b>Operating Temp:</b> -20°C to 50°C<br/>'
-                       '<b>Material:</b> Aluminium Body',
-                       ParagraphStyle(
-                           name='CertFallback',
-                           fontSize=8,
-                           textColor=HexColor('#333333'),
-                           fontName='Helvetica',
-                           alignment=TA_CENTER,
-                           leading=10
-                       ))
-
-    def _create_clean_dimensions_cell(self, product_data: Dict[str, Any]):
-        """Create clean dimensions cell with technical drawing"""
-        product = product_data.get('product', {})
-        dimension_image_url = product.get('dimension_image_url', '')
-        
-        if dimension_image_url and dimension_image_url.startswith(('http://', 'https://')):
-            try:
-                dim_img = self._download_image(dimension_image_url, max_width=45*mm, max_height=35*mm)
-                if dim_img:
-                    # Clean layout with header, image, and specs
-                    dim_data = [
-                        [Paragraph('<b>DIMENSIONS (MM)</b>', ParagraphStyle(
-                            name='DimHeader',
-                            fontSize=9,
-                            textColor=HexColor('#333333'),
-                            fontName='Helvetica-Bold',
-                            alignment=TA_CENTER,
-                            spaceAfter=4
-                        ))],
-                        [dim_img],
-                        [Paragraph('Diameter: <b>Ø50</b><br/>Height: <b>52.8</b>', ParagraphStyle(
-                            name='DimSpecs',
-                            fontSize=8,
-                            textColor=HexColor('#666666'),
-                            fontName='Helvetica',
-                            alignment=TA_CENTER,
-                            leading=10
-                        ))]
-                    ]
-                    
-                    dim_table = Table(dim_data, colWidths=[45*mm])
-                    dim_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                        ('PADDING', (0, 0), (-1, -1), 3),
-                    ]))
-                    return dim_table
-                else:
-                    return self._create_fallback_dimensions_cell()
-            except Exception as e:
-                print(f"Error loading dimension image: {e}")
-                return self._create_fallback_dimensions_cell()
-        else:
-            return self._create_fallback_dimensions_cell()
-
-    def _create_fallback_dimensions_cell(self):
-        """Create fallback dimensions cell"""
-        return Paragraph('<b>DIMENSIONS (MM)</b><br/><br/>'
-                       'Diameter: <b>Ø50</b><br/>'
-                       'Height: <b>52.8</b><br/><br/>'
-                       '[Technical drawing]<br/>'
-                       'Compact profile design',
-                       ParagraphStyle(
-                           name='DimFallback',
-                           fontSize=8,
-                           textColor=HexColor('#333333'),
-                           fontName='Helvetica',
-                           alignment=TA_CENTER,
-                           leading=10
-                       ))
-
-    def _create_compact_specifications_section(self, product_data: Dict[str, Any]) -> List:
-        """Create clean, professional specifications table"""
-        elements = []
-        
-        # Clean section header
-        elements.append(Paragraph('SPECIFICATIONS', ParagraphStyle(
-            name='CleanSectionHeader',
-            fontSize=12,
-            textColor=white,
-            backColor=HexColor('#424242'),
-            fontName='Helvetica-Bold',
-            leftIndent=10,
-            rightIndent=10,
-            spaceBefore=3,
-            spaceAfter=3,
-            leading=18
-        )))
-        elements.append(Spacer(1, 3*mm))
-        
-        # Clean table headers
-        headers = [
-            'Product Code', 
-            'Output\n(lm)', 
-            'Power\n(W)', 
-            'Efficiency\n(lm/W)', 
-            'Tunable Range'
-        ]
-        
-        table_data = [headers]
-        
-        # Add variants with clean formatting
-        selected_variant_id = product_data.get('selected_variant_id')
-        base_code = product_data.get('base_part_code', 'LY-DL-RUA')
-        
-        for variant in product_data.get('variants', []):
-            power = variant.get('system_power', 'N/A')
-            product_code = f"{base_code}-{power}W-①-②-③"
-            
-            row = [
-                product_code,
-                str(variant.get('system_output', 'N/A')),
-                str(power),
-                str(variant.get('efficiency', 105)),
-                '1800K~6000K'
+            # Compile Java class
+            compile_cmd = [
+                "javac",
+                "-cp", self.classpath,
+                java_file_path
             ]
-            table_data.append(row)
-        
-        # Create clean specs table
-        specs_table = Table(table_data, colWidths=[52*mm, 20*mm, 18*mm, 22*mm, 23*mm])
-        
-        # Clean table styling
-        table_style = [
-            # Header styling
-            ('BACKGROUND', (0, 0), (-1, 0), HexColor('#424242')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), white),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             
-            # Data rows styling
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 7),
-            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CCCCCC')),
-            ('PADDING', (0, 0), (-1, -1), 4),
+            print(f"Compiling: {' '.join(compile_cmd)}")
             
-            # Clean alternating colors
-            ('BACKGROUND', (0, 1), (-1, -1), HexColor('#FAFAFA')),
-            ('BACKGROUND', (0, 2), (-1, 2), white),
-            ('BACKGROUND', (0, 4), (-1, 4), white),
-        ]
+            compile_result = subprocess.run(compile_cmd, capture_output=True, text=True)
+            if compile_result.returncode != 0:
+                raise Exception(f"Java compilation failed: {compile_result.stderr}")
+            
+            print("✓ Java compilation successful")
+            
+            # Run Java class
+            run_cmd = [
+                self.java_path,
+                "-cp", f"{self.classpath};{temp_dir}",
+                "PDFGen",
+                html_file,
+                pdf_file
+            ]
+            
+            print(f"Running: {' '.join(run_cmd)}")
+            
+            run_result = subprocess.run(run_cmd, capture_output=True, text=True, timeout=30)
+            
+            print(f"Java stdout: {run_result.stdout}")
+            if run_result.stderr:
+                print(f"Java stderr: {run_result.stderr}")
+            
+            if run_result.returncode != 0:
+                raise Exception(f"PDF generation failed with exit code {run_result.returncode}: {run_result.stderr}")
+                
+            if "PDF_SUCCESS" not in run_result.stdout:
+                raise Exception(f"PDF generation did not complete successfully. Output: {run_result.stdout}")
+                
+            print("✓ PDF generation completed successfully")
+                
+        finally:
+            # Cleanup temp directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+    
+    def _create_phos_style_html(self, product_data: Dict[str, Any]) -> str:
+        """Create perfect PHOS-style HTML that Flying Saucer can render"""
         
-        # Highlight selected variant with subtle color
-        for i, variant in enumerate(product_data.get('variants', [])):
-            if variant.get('id') == selected_variant_id:
-                table_style.append(('BACKGROUND', (0, i+1), (-1, i+1), HexColor('#E8F5E8')))
-                break
+        # Extract data
+        product_name = product_data.get('product_name', 'REGULUS ALPHA')
+        final_part_code = product_data.get('final_part_code', product_data.get('base_part_code', 'LY-DL-RUA-9W-30-2700K-IP20'))
+        current_date = datetime.now().strftime('%d/%m/%Y')
         
-        specs_table.setStyle(TableStyle(table_style))
-        elements.append(specs_table)
-        elements.append(Spacer(1, 5*mm))
+        # Get product info
+        product = product_data.get('product', {})
+        description = product.get('description')
         
-        return elements
-
-    def _create_compact_customizable_section(self, product_data: Dict[str, Any]) -> List:
-        """Create clean customizable specifications"""
-        elements = []
+        # Get product category from database
+        product_category = product_data.get('product_category', 'DOWNLIGHT')
+        print(f"=== PRODUCT CATEGORY DEBUG ===")
+        print(f"Product category: {product_category}")
         
-        # Clean section header
-        elements.append(Paragraph('CUSTOMIZABLE SPECIFICATIONS', ParagraphStyle(
-            name='CleanSectionHeader',
-            fontSize=12,
-            textColor=white,
-            backColor=HexColor('#424242'),
-            fontName='Helvetica-Bold',
-            leftIndent=10,
-            rightIndent=10,
-            spaceBefore=3,
-            spaceAfter=3,
-            leading=18
-        )))
-        elements.append(Spacer(1, 3*mm))
+        # Get selected variant
+        selected_variant = self._get_selected_variant(product_data)
         
         # Get selected options
         selected_options = product_data.get('selected_options', {})
         
-        if selected_options:
-            # Create clean two-column layout
-            col1_items = []
-            col2_items = []
-            
-            item_count = 0
-            for category_name, option_data in selected_options.items():
-                if isinstance(option_data, dict):
-                    option_label = option_data.get('option_label', 'Not specified')
+        # Logo URLs
+        logo_url = "https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/Video-outtro.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL1ZpZGVvLW91dHRyby5qcGciLCJpYXQiOjE3NDk2NTQ0MDAsImV4cCI6MzMyNTQxMTg0MDB9.MRXBbzHe26_6zSrekouErabse7BR4icxXXhB81D_ItU"
+        full_logo_url = "https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/footerlogo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL2Zvb3RlcmxvZ28uanBnIiwiaWF0IjoxNzQ5NjYyNzgxLCJleHAiOjMzMjU0MTI2NzgxfQ.NgJQR2DQltNrMXkbodKKaWY3uT1srZ04-mURMH3UYJg"
+        
+        # Get accessories - properly handle the selected accessories from frontend
+        accessories = product_data.get('accessories', [])
+        print(f"=== ACCESSORIES DEBUG ===")
+        print(f"Accessories data: {accessories}")
+        print(f"Type: {type(accessories)}")
+        print(f"Number of accessories: {len(accessories) if accessories else 0}")
+        
+        # Build accessories HTML - FIXED to include part codes
+        accessories_html = ""
+        if accessories and len(accessories) > 0:
+            for i, accessory in enumerate(accessories):
+                print(f"  Accessory {i}: {accessory}")
+                
+                # Get accessory name
+                accessory_name = (accessory.get('name') or 
+                                accessory.get('accessory_name') or 
+                                accessory.get('product_name') or 
+                                'Unknown Accessory')
+                
+                # Get part code - this is what was missing!
+                part_code = (accessory.get('part_code') or 
+                        accessory.get('accessory_part_code') or '')
+                
+                print(f"    Name: {accessory_name}")
+                print(f"    Part Code: {part_code}")
+                
+                # Create rich accessory display with image if available
+                accessory_image_url = (accessory.get('image_url') or 
+                                    accessory.get('accessory_image_url') or '')
+                
+                if accessory_image_url:
+                    # With image layout - include part code
+                    accessories_html += f'''
+                    <table class="accessory-row">
+                        <tr>
+                            <td class="accessory-image-cell">
+                                <img src="{accessory_image_url}" alt="{accessory_name}" class="accessory-image"/>
+                            </td>
+                            <td class="accessory-text-cell">
+                                <div class="accessory-name-block">{accessory_name}</div>
+                                {f'<div class="accessory-part-block">{part_code}</div>' if part_code else ''}
+                            </td>
+                        </tr>
+                    </table>'''
                 else:
-                    option_label = str(option_data)
-                
-                # Clean display names with numbers
-                display_name = category_name
-                if category_name == "Beam Angle":
-                    display_name = "① Beam Angle"
-                elif category_name == "Colour Temperature": 
-                    display_name = "② Colour Temperature"
-                elif category_name == "IP Rating":
-                    display_name = "③ IP Rating"
-                
-                formatted_item = f"<b>{display_name}:</b> ■ {option_label}"
-                
-                # Distribute items across columns
-                if item_count % 2 == 0:
-                    col1_items.append(formatted_item)
-                else:
-                    col2_items.append(formatted_item)
-                item_count += 1
-            
-            # Create balanced columns
-            config_data = [
-                [
-                    Paragraph('<br/>'.join(col1_items), ParagraphStyle(
-                        name='ConfigCol1',
-                        fontSize=8,
-                        textColor=HexColor('#333333'),
-                        fontName='Helvetica',
-                        alignment=TA_LEFT,
-                        leading=12
-                    )),
-                    Paragraph('<br/>'.join(col2_items), ParagraphStyle(
-                        name='ConfigCol2',
-                        fontSize=8,
-                        textColor=HexColor('#333333'),
-                        fontName='Helvetica',
-                        alignment=TA_LEFT,
-                        leading=12
-                    )) if col2_items else ''
-                ]
-            ]
-            
-            config_table = Table(config_data, colWidths=[90*mm, 90*mm])
-            config_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('PADDING', (0, 0), (-1, -1), 5),
-                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
-                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E0E0E0')),
-            ]))
-            elements.append(config_table)
+                    # Without image layout - include part code
+                    if part_code:
+                        accessories_html += f'''
+                        <div class="accessory-item">
+                            <div class="accessory-name">{accessory_name}</div>
+                            <div class="accessory-part-code">{part_code}</div>
+                        </div>'''
+                    else:
+                        accessories_html += f'<div class="accessory-item">{accessory_name}</div>'
         else:
-            elements.append(Paragraph('No customizations selected', self.styles['Normal']))
+            accessories_html = '<div class="accessory-item" style="color: #999; font-style: italic;">None selected</div>'
         
-        elements.append(Spacer(1, 5*mm))
-        return elements
-
-    def _create_compact_light_distribution_section(self) -> List:
-        """Create clean light distribution section"""
-        elements = []
+        print(f"Final accessories HTML: {accessories_html}")
         
-        # Clean section header
-        elements.append(Paragraph('LIGHT DISTRIBUTION', ParagraphStyle(
-            name='CleanSectionHeader',
-            fontSize=12,
-            textColor=white,
-            backColor=HexColor('#424242'),
-            fontName='Helvetica-Bold',
-            leftIndent=10,
-            rightIndent=10,
-            spaceBefore=3,
-            spaceAfter=3,
-            leading=18
-        )))
-        elements.append(Spacer(1, 3*mm))
-        
-        # Clean, organized light distribution data
-        light_data = [
-            [
-                Paragraph('<b>Polar Distribution:</b><br/>'
-                         'Photometric data available<br/>'
-                         'Beam characteristics optimized<br/>'
-                         'IES files available on request', 
-                         ParagraphStyle(
-                             name='LightDistCol1',
-                             fontSize=8,
-                             textColor=HexColor('#333333'),
-                             fontName='Helvetica',
-                             alignment=TA_LEFT,
-                             leading=10
-                         )),
-                
-                Paragraph('<b>Performance Data:</b><br/>'
-                         '1m: 2,500 lx | Ø0.35m<br/>'
-                         '2m: 625 lx | Ø0.70m<br/>'
-                         '3m: 278 lx | Ø1.05m', 
-                         ParagraphStyle(
-                             name='LightDistCol2',
-                             fontSize=8,
-                             textColor=HexColor('#333333'),
-                             fontName='Helvetica',
-                             alignment=TA_LEFT,
-                             leading=10
-                         ))
-            ]
-        ]
-        
-        light_table = Table(light_data, colWidths=[90*mm, 90*mm])
-        light_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('PADDING', (0, 0), (-1, -1), 8),
-            ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
-            ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E0E0E0')),
-        ]))
-        
-        elements.append(light_table)
-        elements.append(Spacer(1, 3*mm))
-        
-        return elements
-
-    def _create_compact_accessories_section(self, accessories: List[Dict]) -> List:
-        """Create compact accessories section with images"""
-        elements = []
-        
-        # Section header
-        elements.append(Paragraph('AVAILABLE ACCESSORIES', ParagraphStyle(
-            name='CleanSectionHeader',
-            fontSize=12,
-            textColor=white,
-            backColor=HexColor('#424242'),
-            fontName='Helvetica-Bold',
-            leftIndent=10,
-            rightIndent=10,
-            spaceBefore=3,
-            spaceAfter=3,
-            leading=18
-        )))
-        elements.append(Spacer(1, 3*mm))
-        
-        if accessories:
-            # Create accessories grid with images
-            acc_data = []
-            
-            # Process accessories in rows of 2-3 items
-            for i in range(0, len(accessories), 3):  # 3 accessories per row
-                row_accessories = accessories[i:i+3]
-                acc_row = []
-                
-                for accessory in row_accessories:
-                    acc_cell = self._create_accessory_cell(accessory)
-                    acc_row.append(acc_cell)
-                
-                # Fill empty cells if needed
-                while len(acc_row) < 3:
-                    acc_row.append('')
-                
-                acc_data.append(acc_row)
-            
-            # Create accessories table
-            acc_table = Table(acc_data, colWidths=[60*mm, 60*mm, 60*mm])
-            acc_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('PADDING', (0, 0), (-1, -1), 5),
-                ('BACKGROUND', (0, 0), (-1, -1), HexColor('#FAFAFA')),
-                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#E0E0E0')),
-            ]))
-            
-            elements.append(acc_table)
-            elements.append(Spacer(1, 4*mm))
-        
-        return elements
-
-    def _create_accessory_cell(self, accessory: Dict) -> object:
-        """Create individual accessory cell with image and details"""
-        try:
-            acc_elements = []
-            
-            # Accessory name header
-            acc_elements.append([Paragraph(f'<b>{accessory.get("name", "Accessory")}</b>', 
-                                         ParagraphStyle(
-                                             name='AccHeader',
-                                             fontSize=8,
-                                             textColor=HexColor('#333333'),
-                                             fontName='Helvetica-Bold',
-                                             alignment=TA_CENTER,
-                                             spaceAfter=2
-                                         ))])
-            
-            # Accessory image
-            acc_image_url = accessory.get('image_url', '')
-            if acc_image_url and acc_image_url.startswith(('http://', 'https://')):
-                acc_img = self._download_image(acc_image_url, max_width=25*mm, max_height=20*mm)
-                if acc_img:
-                    acc_elements.append([acc_img])
-                else:
-                    # Fallback to icon/text
-                    acc_elements.append([Paragraph('[Image]', ParagraphStyle(
-                        name='AccImageFallback',
-                        fontSize=7,
-                        textColor=HexColor('#999999'),
-                        fontName='Helvetica',
-                        alignment=TA_CENTER
-                    ))])
-            else:
-                # No image - show icon
-                acc_elements.append([Paragraph('📦', ParagraphStyle(
-                    name='AccIcon',
-                    fontSize=16,
-                    textColor=HexColor('#666666'),
-                    fontName='Helvetica',
-                    alignment=TA_CENTER
-                ))])
-            
-            # Accessory details
-            part_code = accessory.get('part_code', 'N/A')
-            description = accessory.get('description', '')[:50] + ('...' if len(accessory.get('description', '')) > 50 else '')
-            
-            acc_elements.append([Paragraph(f'<b>Part:</b> {part_code}<br/>{description}', 
-                                         ParagraphStyle(
-                                             name='AccDetails',
-                                             fontSize=6,
-                                             textColor=HexColor('#666666'),
-                                             fontName='Helvetica',
-                                             alignment=TA_CENTER,
-                                             leading=7
-                                         ))])
-            
-            # Create accessory table
-            acc_table = Table(acc_elements, colWidths=[55*mm])
-            acc_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('PADDING', (0, 0), (-1, -1), 2),
-            ]))
-            
-            return acc_table
-            
-        except Exception as e:
-            print(f"Error creating accessory cell: {e}")
-            # Fallback to text-only
-            return Paragraph(f'<b>{accessory.get("name", "Accessory")}</b><br/>'
-                            f'Part: {accessory.get("part_code", "N/A")}', 
-                            ParagraphStyle(
-                                name='AccFallback',
-                                fontSize=7,
-                                textColor=HexColor('#333333'),
-                                fontName='Helvetica',
-                                alignment=TA_CENTER,
-                                leading=8
-                            ))
-
-    def _download_image(self, url: str, max_width: float = 50*mm, max_height: float = 40*mm):
-        """Download image from URL and return ReportLab Image object"""
-        try:
-            print(f"DEBUG: Attempting to download image from: {url[:100]}...")
-            
-            # Add headers for better compatibility with signed URLs
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'image/*,*/*;q=0.8'
-            }
-            
-            response = requests.get(url, timeout=15, headers=headers)
-            response.raise_for_status()
-            
-            print(f"DEBUG: Successfully downloaded image, size: {len(response.content)} bytes")
-            
-            # Create a BytesIO object from the image data
-            image_data = BytesIO(response.content)
-            
-            # Create ReportLab Image object
-            img = Image(image_data)
-            
-            # Scale image to fit within max dimensions while maintaining aspect ratio
-            img_width, img_height = img.imageWidth, img.imageHeight
-            print(f"DEBUG: Original image size: {img_width}x{img_height}")
-            
-            aspect_ratio = img_width / img_height
-            
-            if img_width > max_width:
-                img_width = max_width
-                img_height = img_width / aspect_ratio
-            
-            if img_height > max_height:
-                img_height = max_height
-                img_width = img_height * aspect_ratio
-                
-            img.drawWidth = img_width
-            img.drawHeight = img_height
-            
-            print(f"DEBUG: Scaled image size: {img_width}x{img_height}")
-            return img
-            
-        except requests.exceptions.RequestException as e:
-            print(f"DEBUG: Network error downloading image: {e}")
-            return None
-        except Exception as e:
-            print(f"DEBUG: Error processing image: {e}")
-            return None
-
-    def _add_header_footer(self, canvas, doc):
-        """Add professional header and footer with better spacing"""
-        canvas.saveState()
-        
-        # Footer with adjusted positioning
-        footer_y = 10*mm  # Moved up slightly
-        canvas.setFont('Helvetica', 8)
-        canvas.setFillColor(grey)
-        
-        # Left side: Copyright text
-        canvas.drawString(self.margin, footer_y, 'All rights reserved Lylux 2024 | www.lylux-group.com')
-        
-        # Right side: LYLUX logo and page number
-        logo_width = 35*mm
-        logo_height = 8*mm
-        logo_x = self.width - self.margin - logo_width
-        
-        # LYLUX logo background
-        canvas.setFillColor(HexColor('#2C2C2C'))
-        canvas.rect(logo_x, footer_y - 2*mm, logo_width, logo_height, fill=1)
-        
-        # LYLUX text
-        canvas.setFillColor(white)
-        canvas.setFont('Helvetica-Bold', 10)
-        canvas.drawString(logo_x + 5*mm, footer_y + 1*mm, 'LYLUX')
-        canvas.setFont('Helvetica', 6)
-        canvas.drawString(logo_x + 5*mm, footer_y - 1*mm, 'LIGHTING YOUR FUTURE')
-        
-        # Page number
-        canvas.setFillColor(grey)
-        canvas.setFont('Helvetica', 8)
-        canvas.drawRightString(logo_x - 5*mm, footer_y, str(doc.page))
-        
-        canvas.restoreState()
-
-    # Legacy/compatibility methods for backwards compatibility
-    def _create_page1_exact_layout(self, product_data: Dict[str, Any]) -> List:
-        """Fallback method - redirect to single page layout"""
-        return self._create_single_page_layout(product_data)
-    
-    def _create_main_info_section(self, product_data: Dict[str, Any]) -> List:
-        """Fallback method - redirect to new method"""
-        return self._create_main_info_section_with_images(product_data)
-    
-    def _create_customizable_section(self, product_data: Dict[str, Any]) -> List:
-        """Legacy method - redirect to selected only version"""
-        return self._create_compact_customizable_section(product_data)
-    
-    def _create_specifications_section(self, product_data: Dict[str, Any]) -> List:
-        """Legacy method - redirect to compact version"""
-        return self._create_compact_specifications_section(product_data)
-    
-    def _create_light_distribution_section(self) -> List:
-        """Legacy method - redirect to compact version"""
-        return self._create_compact_light_distribution_section()
-    
-    def _create_accessories_section(self, accessories: List[Dict]) -> List:
-        """Legacy method - redirect to compact version"""
-        return self._create_compact_accessories_section(accessories)
-    
-    def _create_customizable_section_selected_only(self, product_data: Dict[str, Any]) -> List:
-        """Legacy method - redirect to compact version"""
-        return self._create_compact_customizable_section(product_data)
-
-    # Additional legacy methods for broader compatibility
-    def _create_image_cell(self, image_url: str, fallback_text: str):
-        """Create image cell with actual image download or fallback text (legacy compatibility)"""
-        if image_url and image_url.startswith(('http://', 'https://')):
-            try:
-                # Try to download and embed the actual image
-                img = self._download_image(image_url, max_width=55*mm, max_height=45*mm)
-                if img:
-                    return img
-                else:
-                    # If image download fails, show fallback
-                    return Paragraph(f'<b>{fallback_text}</b><br/><br/>'
-                                   f'[Image could not be loaded]<br/>'
-                                   f'<i>High-quality product visualization</i>', 
-                                   self.styles['SmallText'])
-            except Exception as e:
-                print(f"Error processing image: {e}")
-                return Paragraph(f'<b>{fallback_text}</b><br/><br/>'
-                               f'[Image error: {str(e)[:50]}]', 
-                               self.styles['SmallText'])
-        else:
-            return Paragraph(f'<b>{fallback_text}</b><br/><br/>'
-                           f'High-efficiency LED downlight<br/>'
-                           f'Premium aluminium construction<br/>'
-                           f'Advanced thermal management', 
-                           self.styles['SmallText'])
-    
-    def _create_dimensions_cell(self, product_data: Dict[str, Any]):
-        """Create dimensions cell with product-specific technical drawing (legacy compatibility)"""
-        # Get product-specific dimension image from products table
-        product = product_data.get('product', {})
+        # Get images
+        product_image_url = product.get('product_image_url', '')
         dimension_image_url = product.get('dimension_image_url', '')
         
-        if dimension_image_url and dimension_image_url.startswith(('http://', 'https://')):
-            try:
-                # Try to download the product-specific dimension image
-                dim_img = self._download_image(dimension_image_url, max_width=55*mm, max_height=45*mm)
-                if dim_img:
-                    # Create a table with text above and image below
-                    dim_data = [
-                        [Paragraph('<b>DIMENSIONS (MM)</b><br/>Diameter: Ø50<br/>Height: 52.8', self.styles['SmallText'])],
-                        [dim_img]
-                    ]
-                    dim_table = Table(dim_data, colWidths=[55*mm])
-                    dim_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                        ('PADDING', (0, 0), (-1, -1), 2),
-                    ]))
-                    return dim_table
-                else:
-                    return Paragraph('<b>DIMENSIONS (MM)</b><br/><br/>Diameter: Ø50<br/>Height: 52.8<br/><br/>[Technical drawing could not load]', self.styles['SmallText'])
-            except Exception as e:
-                print(f"Error loading dimension image: {e}")
-                return Paragraph('<b>DIMENSIONS (MM)</b><br/><br/>Diameter: Ø50<br/>Height: 52.8<br/><br/>[Technical drawing error]', self.styles['SmallText'])
-        else:
-            return Paragraph('<b>DIMENSIONS (MM)</b><br/><br/>Diameter: Ø50<br/>Height: 52.8<br/><br/>[Technical drawing]', self.styles['SmallText'])
-
-    def _create_certifications_cell_with_images(self, certifications: List[Dict]) -> object:
-        """Create certifications cell with actual certification images (legacy compatibility)"""
-        print(f"=== CERTIFICATIONS CELL DEBUG ===")
-        print(f"Received certifications: {certifications}")
-        print(f"Type: {type(certifications)}")
-        print(f"Length: {len(certifications) if certifications else 'None'}")
-        
-        if not certifications:
-            print("No certifications provided, using fallback")
-            return Paragraph('<b>Certifications:</b><br/>'
-                           'CE ✓ | RoHS ✓<br/><br/>'
-                           '<b>IP65</b> (Optional)<br/><br/>'
-                           '<b>Rated Life:</b> 50,000 Hrs<br/>'
-                           '<b>Operating Temp:</b> -20°C~50°C<br/>'
-                           '<b>Material:</b> Aluminium Body', self.styles['SmallText'])
-        
-        try:
-            print("Creating certification images...")
-            cert_data = []
-            cert_data.append([Paragraph('<b>Certifications:</b>', self.styles['SmallText'])])
-            
-            # Process each certification
-            for i, cert in enumerate(certifications):
-                print(f"Processing cert {i}: {cert}")
+        # Get certifications
+        certifications = product_data.get('visual_assets', {}).get('certifications', [])
+        print(f"=== CERTIFICATIONS DEBUG IN PDF GENERATOR ===")
+        # TEMPORARY FIX: Force certifications for testing
+        print("=== FORCING CERTIFICATIONS FOR TESTING ===")
+        product_data['visual_assets'] = {
+            'certifications': [
+                {
+                    'file_name': 'RoHS Certification',
+                    'file_url': 'https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/rohs-certification.png',
+                    'asset_type': 'certification'
+                },
+                {
+                    'file_name': 'CE Certification', 
+                    'file_url': 'https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/ce-certification.png',
+                    'asset_type': 'certification'
+                }
+            ]
+        }
+        print(f"Forced {len(product_data['visual_assets']['certifications'])} certifications")
+        certifications_html = ""
+        if certifications:
+            for cert in certifications:
                 cert_url = cert.get('file_url', '')
-                cert_name = cert.get('file_name', f'Cert_{i}')
-                
-                if cert_url and cert_url.startswith(('http://', 'https://')):
-                    print(f"Downloading image from: {cert_url[:50]}...")
-                    cert_img = self._download_image(cert_url, max_width=25*mm, max_height=20*mm)
-                    if cert_img:
-                        print(f"Successfully downloaded cert {i}")
-                        cert_data.append([cert_img])
-                        continue
-                
-                # Fallback to text
-                print(f"Using text fallback for cert {i}")
-                display_name = cert_name.replace('-', ' ').replace('.png', '').title()
-                cert_data.append([Paragraph(f'{display_name} ✓', self.styles['SmallText'])])
+                cert_name = cert.get('file_name', 'Certification')
+                if cert_url:
+                    certifications_html += f'<img src="{cert_url}" alt="{cert_name}" class="cert-logo"/>'
+    
+    # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
+        html_content = f'''<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8"/>
+        <style>
+            @page {{
+                @top-center {{
+                    content: element(header);
+                }}
+                @bottom-center {{
+                    content: element(footer);
+                }}
+                size: A4;
+                margin: 10mm 15mm 15mm 15mm;
+            }}
             
-            # Add additional info
-            cert_data.append([Paragraph('<b>Rated Life:</b> 50,000 Hrs<br/>'
-                                      '<b>Operating Temp:</b> -20°C~50°C<br/>'
-                                      '<b>Material:</b> Aluminium Body', self.styles['SmallText'])])
+            body {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                font-size: 10pt;
+                font-weight: normal;
+                line-height: 1.2;
+                color: #333;
+                margin: 0;
+                padding: 0;
+            }}
             
-            # Create table
-            cert_table = Table(cert_data, colWidths=[60*mm])
-            cert_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('PADDING', (0, 0), (-1, -1), 2),
-            ]))
+            .header {{
+                width: 100%;
+                padding-bottom: 5pt;
+                margin-bottom: 10pt;
+            }}
             
-            print("Successfully created certification table")
-            return cert_table
+            .header-content {{
+                display: table;
+                width: 100%;
+            }}
             
-        except Exception as e:
-            print(f"Error creating certifications: {e}")
-            import traceback
-            traceback.print_exc()
-            return Paragraph('<b>Certifications:</b><br/>'
-                           'CE ✓ | RoHS ✓<br/><br/>'
-                           '<b>Rated Life:</b> 50,000 Hrs<br/>'
-                           '<b>Operating Temp:</b> -20°C~50°C', self.styles['SmallText'])
+            .company-info {{
+                display: table-cell;
+                vertical-align: top;
+                position: relative;
+            }}
+            
+            .logo-section {{
+                display: inline-block;
+                vertical-align: top;
+                margin-right: 0pt;
+                height: 37pt;
+                width: 120pt;
+            }}
+            
+            .company-logo {{
+                height: 35pt;
+                width: auto;
+                margin-bottom: 2pt;
+            }}
+            
+            .company-logo-text {{
+                font-family: 'YuGothic', Arial, sans-serif;
+                font-size: 28pt;
+                font-weight: bold;
+                letter-spacing: 4pt;
+                color: #333;
+                line-height: 30pt;
+                margin: 0;
+                height: 30pt;
+            }}
+            
+            .company-tagline {{
+                font-family: 'YuGothic', Arial, sans-serif;
+                font-size: 7pt;
+                font-weight: bold;
+                letter-spacing: 2pt;
+                color: #666;
+                text-transform: uppercase;
+                margin: 0;
+                height: 7pt;
+                line-height: 7pt;
+            }}
+            
+            .product-category {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                background-color: #4a4a4a;
+                color: white;
+                padding: 0 8pt;
+                font-size: 15pt;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 0.5pt;
+                border-radius: 2pt;
+                display: inline-block;
+                vertical-align: top;
+                height: 35pt;
+                line-height: 35pt;
+                min-width: 400pt;
+                text-align: right;
+                position: absolute;
+                left: 45pt;
+                top: 0pt;
+            }}
 
-    def _create_option_section(self, number: str, title: str, options: List[str], selected_option: Dict) -> Paragraph:
-        """Create individual option section showing only selected items"""
-        content = f'<b>{number} {title}</b><br/>' if number else f'<b>{title}</b><br/>'
+            .green-rectangle {{
+                background-color: #90bd2c;
+                color: white;
+                padding: 0 8pt;
+                font-size: 8pt;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 0.5pt;
+                border-radius: 2pt;
+                display: inline-block;
+                vertical-align: top;
+                height: 35pt;
+                line-height: 35pt;
+                min-width: 20pt;
+                text-align: center;
+                position: absolute;
+                left: 470pt;
+                top: 0pt;
+            }}
+            
+            .divider {{
+                border-bottom: 2px solid #333;
+                margin-top: 8pt;
+                width: 100%;
+                clear: both;
+            }}
+            
+            .product-title {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                font-size: 20pt;
+                font-weight: bold;
+                margin: 0 0 8pt 0;
+                color: #333;
+                line-height: 1.1;
+                border-left: 4pt solid #90bd2c;
+                padding-left: 8pt;
+            }}
+            
+            .images-table {{
+                width: 100%;
+                margin-bottom: 15pt;
+                border-collapse: collapse;
+            }}
+            
+            .images-table td {{
+                width: 50%;
+                text-align: center;
+                padding: 5pt;
+            }}
+            
+            .product-image, .dimension-image {{
+                max-width: 95%;
+                height: auto;
+            }}
+            
+            .main-table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            
+            .main-table td {{
+                vertical-align: top;
+                padding: 0;
+            }}
+            
+            .left-column {{
+                width: 65%;
+                padding-right: 10pt;
+            }}
+            
+            .right-column {{
+                width: 35%;
+                padding-left: 10pt;
+            }}
+            
+            .section {{
+                margin-bottom: 12pt;
+            }}
+            
+            .section-header {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                font-size: 12pt;
+                font-weight: bold;
+                margin: 0 0 6pt 0;
+                padding: 2pt 0 2pt 6pt;
+                color: #333;
+                line-height: 1.2;
+                border-left: 3pt solid #90bd2c;
+                display: block;
+            }}
+            
+            .part-code {{
+                font-family: 'YuGothic', 'Courier New', monospace;
+                font-size: 11pt;
+                font-weight: bold;
+                margin: 3pt 0 6pt 0;
+                color: #333;
+                line-height: 1.0;
+            }}
+            
+            .spec-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 0;
+            }}
+            
+            .spec-table td {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                padding: 1.25pt 0;
+                border: none;
+                font-weight: bold;
+                font-size: 8.5pt;
+                line-height: 1.2;
+                vertical-align: top;
+            }}
+            
+            .label-col {{
+                color: #333;
+                font-weight: bold;
+                width: 60%;
+            }}
+            
+            .value-col {{
+                color: #666;
+                font-weight: normal;
+                text-align: left;
+                width: 40%;
+            }}
+            
+            /* FIXED ACCESSORIES STYLES - Added part code support */
+            .accessory-item {{
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                font-size: 8pt;
+                margin: 3pt 0;
+                color: #666;
+                border-bottom: 1px dotted #ddd;
+                padding-bottom: 2pt;
+            }}
+            
+            .accessory-item .accessory-name {{
+                font-weight: bold;
+                margin-bottom: 1pt;
+                color: #333;
+            }}
+            
+            .accessory-item .accessory-part-code {{
+                font-size: 7pt;
+                color: #888;
+                font-family: 'Courier New', monospace;
+                font-style: italic;
+                margin-left: 4pt;
+            }}
+            
+            .accessory-item-with-image {{
+                font-family: 'YuGothic', Arial, sans-serif;
+                margin: 4pt 0;
+                display: flex;
+                align-items: center;
+                font-size: 8pt;
+                color: #666;
+                border-bottom: 1px dotted #ddd;
+                padding-bottom: 4pt;
+            }}
+
+            .accessory-row {{
+                width: 100%;
+                margin-bottom: 8pt;
+                border-spacing: 0;
+            }}
+
+            .accessory-text-cell {{
+                vertical-align: middle;
+            }}
+
+            .accessory-image-cell {{
+                width: 40pt;
+                vertical-align: middle;
+                padding-right: 6pt;
+            }}
+            
+            .accessory-image {{
+                width: 30pt;
+                height: 30pt;
+                margin-right: 6pt;
+                border: 1px solid #ddd;
+                border-radius: 2pt;
+            }}
+
+            .accessory-name-block {{
+                background-color: #333;
+                color: white;
+                font-size: 8pt;
+                font-weight: bold;
+                padding: 3pt 6pt;
+                margin-bottom: 1pt;
+            }}
+
+            .accessory-part-block {{
+                background-color: #f3f3f3;
+                font-size: 7pt;
+                color: #333;
+                padding: 3pt 6pt;
+                font-family: 'Courier New', monospace;
+            }}
+            
+            .accessory-details {{
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+            }}
+            
+            .accessory-details .accessory-name {{
+                font-weight: bold;
+                margin-bottom: 1pt;
+                color: #333;
+            }}
+            
+            .accessory-details .accessory-part-code {{
+                font-size: 7pt;
+                color: #888;
+                font-family: 'Courier New', monospace;
+                font-style: italic;
+            }}
+            
+            .cert-logo {{
+                width: 45pt;
+                height: 45pt;
+                margin: 3pt;
+                display: inline-block;
+            }}
+            
+            /* Footer CSS */
+            .footer {{
+                position: running(footer);
+                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+                font-size: 9pt;
+                font-weight: normal;
+                color: #333;
+                border-top: 2px solid #333;
+                padding: 0pt 2pt;
+                background: white;
+                width: 100%;
+            }}
+
+            .footer-table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+
+            .footer-table td {{
+                vertical-align: middle;
+                padding: 2pt 5pt;
+            }}
+
+            .footer-left {{
+                font-family: 'YuGothic', Arial, sans-serif;
+                text-align: left;
+                font-weight: bold;
+                width: 33%;
+            }}
+
+            .footer-center {{
+                text-align: center;
+                width: 34%;
+            }}
+
+            .footer-logo {{
+                height: 25pt;
+            }}
+
+            .footer-right {{
+                font-family: 'YuGothic', Arial, sans-serif;
+                text-align: right;
+                font-weight: bold;
+                width: 33%;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="page-content">
+            <!-- Header with FIXED category rectangle next to logo -->
+            <div class="header">
+                <div class="header-content">
+                    <div class="company-info">
+                        <div class="logo-section">
+                            <!-- Try the logo image first -->
+                            <img src="{logo_url}" alt="LYLUX" class="company-logo" 
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                            <!-- Fallback text logo (hidden by default) -->
+                            <div class="company-logo-text" style="display: none;">LYLUX</div>
+                        </div>
+                        <!-- FIXED Product Category rectangle - dark gray with white text -->
+                        <div class="product-category">{product_category.upper()}</div>
+                        <div class="green-rectangle"></div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+            </div>
+
+            <!-- Product Title -->
+            <div class="product-title">{product_name.upper()}</div>
+            
+            <!-- Images Section -->
+            <table class="images-table">
+                <tr>
+                    <td>{f'<img src="{product_image_url}" alt="{product_name}" class="product-image"/>' if product_image_url else 'Product Image'}</td>
+                    <td>{f'<img src="{dimension_image_url}" alt="Technical Drawing" class="dimension-image"/>' if dimension_image_url else 'Technical Drawing'}</td>
+                </tr>
+            </table>
+
+            <!-- Main Content Table -->
+            <table class="main-table">
+                <tr>
+                    <td class="left-column">
+                        <!-- GENERAL -->
+                        <div class="section">
+                            <div class="section-header">GENERAL</div>
+                            <table class="spec-table">
+                                <tr><td class="label-col">Material</td><td class="value-col">Die Cast Aluminium</td></tr>
+                                <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
+                                <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
+                                <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
+                                <tr><td class="label-col">IP</td><td class="value-col">IP20</td></tr>
+                            </table>
+                        </div>
+
+                        <!-- LED -->
+                        <div class="section">
+                            <div class="section-header">LED</div>
+                            <table class="spec-table">
+                                <tr><td class="label-col">CCT</td><td class="value-col">{selected_options.get('Colour Temperature', {}).get('option_label', '2700K')}</td></tr>
+                                <tr><td class="label-col">CRI</td><td class="value-col">{selected_options.get('CRI', {}).get('option_label', '90')}</td></tr>
+                                <tr><td class="label-col">LED Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm</td></tr>
+                                <tr><td class="label-col">System Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm-15%</td></tr>
+                                <tr><td class="label-col">Lifetime</td><td class="value-col">50000h@l80B10</td></tr>
+                                <tr><td class="label-col">SDCM</td><td class="value-col">3</td></tr>
+                            </table>
+                        </div>
+
+                        <!-- OPTICS -->
+                        <div class="section">
+                            <div class="section-header">OPTICS</div>
+                            <table class="spec-table">
+                                <tr><td class="label-col">Beam Angle</td><td class="value-col">{selected_options.get('Beam Angle', {}).get('option_label', '18°')}</td></tr>
+                            </table>
+                        </div>
+
+                        <!-- ELECTRIC -->
+                        <div class="section">
+                            <div class="section-header">ELECTRIC</div>
+                            <table class="spec-table">
+                                <tr><td class="label-col">LED Driver</td><td class="value-col">{selected_options.get('Control Type', {}).get('option_label', 'Non Dimmable')}</td></tr>
+                                <tr><td class="label-col">LED power</td><td class="value-col">{selected_variant.get('system_power', 4)}W</td></tr>
+                                <tr><td class="label-col">System Power</td><td class="value-col">{selected_variant.get('system_power', 6)}W</td></tr>
+                                <tr><td class="label-col">LED Current</td><td class="value-col">350mA</td></tr>
+                            </table>
+                        </div>
+
+                        <!-- DIMENSION -->
+                        <div class="section">
+                            <div class="section-header">DIMENSION</div>
+                            <table class="spec-table">
+                                <tr><td class="label-col">D1</td><td class="value-col">50mm</td></tr>
+                                <tr><td class="label-col">H</td><td class="value-col">50mm</td></tr>
+                                <tr><td class="label-col">D2</td><td class="value-col">55mm</td></tr>
+                                <tr><td class="label-col">Cutout</td><td class="value-col">50mm</td></tr>
+                            </table>
+                        </div>
+                    </td>
+                    
+                    <td class="right-column">
+                        <!-- ACCESSORIES (TOP) - NOW WITH PART CODES -->
+                        <div class="section">
+                            <div class="section-header">ACCESSORIES</div>
+                            <div class="accessories-container">
+                                {accessories_html}
+                            </div>
+                        </div>
+                    
+                        <!-- PRODUCT PART CODE (MIDDLE) -->
+                        <div class="section">
+                            <div class="section-header">PRODUCT PART CODE</div>
+                            <div class="part-code">{final_part_code}</div>
+                        </div>
+
+                        <!-- CERTIFICATIONS (BOTTOM) -->
+                        <div class="section">
+                            <div class="section-header">CERTIFICATIONS</div>
+                            <div class="certifications-container">
+                                {certifications_html if certifications_html else '<div style="font-size: 8pt; color: #666;">Certifications loading...</div>'}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Footer HTML -->
+        <div class="footer">
+            <table class="footer-table">
+                <tr>
+                    <td class="footer-left">
+                        All rights reserved Lylux 2024<br/>
+                        www.lylux-group.com
+                    </td>
+                    <td class="footer-center">
+                        <img src="{full_logo_url}" alt="LYLUX" class="footer-logo" onerror="this.style.display='none';" />
+                    </td>
+                    <td class="footer-right">
+                        1
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </body>
+    </html>'''
         
-        selected_label = selected_option.get('option_label', '') if isinstance(selected_option, dict) else str(selected_option)
+        return html_content
+    
+    def _get_selected_variant(self, product_data: Dict[str, Any]):
+        """Get the selected variant or first variant"""
+        selected_variant_id = product_data.get('selected_variant_id')
+        variants = product_data.get('variants', [])
         
-        # Only show the selected option with a checkmark, not all options
-        if selected_label and selected_label != '':
-            # Find the matching option and show only that one
-            for option in options:
-                if option == selected_label or option in selected_label or selected_label in option:
-                    content += f'☑ {option}<br/>'
-                    break
-            else:
-                # If no exact match found, show the selected_label as is
-                content += f'☑ {selected_label}<br/>'
+        if selected_variant_id:
+            for variant in variants:
+                if variant.get('id') == selected_variant_id:
+                    return variant
+        
+        # Return first variant or default values
+        if variants:
+            return variants[0]
         else:
-            # If nothing selected, show first option unchecked
-            content += f'☐ {options[0]}<br/>' if options else ''
-        
-        return Paragraph(content, self.styles['CheckboxText'])
+            return {
+                'system_output': 420,
+                'system_power': 4,
+                'efficiency': 105
+            }

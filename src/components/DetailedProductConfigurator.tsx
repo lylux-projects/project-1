@@ -56,9 +56,6 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfStatus, setPdfStatus] = useState(null);
 
-  // NEW: Add PDF generator selection state
-  const [pdfGenerator, setPdfGenerator] = useState("html"); // 'html' or 'reportlab'
-
   // Configuration state
   const [selectedVariantId, setSelectedVariantId] = useState(null);
   const [selectedOptions, setSelectedOptions] = useState({});
@@ -151,8 +148,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
     setCurrentPartCode(partCodeParts.join("-"));
   };
 
-  // ENHANCED: Updated PDF download function with generator selection
-  const handleDownloadDatasheet = async (generatorType = pdfGenerator) => {
+  const handleDownloadDatasheet = async () => {
     if (!productDetails || !selectedVariantId) {
       setPdfStatus({
         type: "error",
@@ -165,9 +161,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       setPdfGenerating(true);
       setPdfStatus({
         type: "info",
-        message: `Generating professional datasheet using ${
-          generatorType === "html" ? "HTML" : "ReportLab"
-        } generator...`,
+        message: "Generating professional datasheet...",
       });
 
       const selectedVariant = productDetails.variants.find(
@@ -259,21 +253,25 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       };
 
       // Enhanced debugging
-      console.log("=== LYLUX PDF GENERATION DEBUG ===");
-      console.log("Generator Type:", generatorType);
+      console.log("=== REAL FRONTEND DEBUG ===");
       console.log("API Base URL:", API_BASE_URL);
+      console.log(
+        "PDF Request URL:",
+        `${API_BASE_URL}/generate-professional-datasheet`
+      );
       console.log("Full PDF request:", JSON.stringify(pdfRequest, null, 2));
+      console.log("Visual assets being sent:", pdfRequest.visual_assets);
+      console.log(
+        "Certifications being sent:",
+        pdfRequest.visual_assets.certifications
+      );
+      console.log(
+        "Number of certifications:",
+        pdfRequest.visual_assets.certifications?.length || 0
+      );
 
-      // Choose endpoint based on generator type
-      const endpoint =
-        generatorType === "html"
-          ? `${API_BASE_URL}/generate-html-datasheet`
-          : `${API_BASE_URL}/generate-professional-datasheet`;
-
-      console.log("PDF Request URL:", endpoint);
-
-      // Call the appropriate backend endpoint
-      const response = await fetch(endpoint, {
+      // Call the REAL backend endpoint
+      const response = await fetch(`${API_BASE_URL}/generate-datasheet`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -314,15 +312,12 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       const url = window.URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
       link.href = url;
-
-      const filenameSuffix =
-        generatorType === "html" ? "LYLUX_Datasheet" : "Professional_Datasheet";
       link.setAttribute(
         "download",
         `${productDetails.product.name.replace(
           /[^a-zA-Z0-9]/g,
           "_"
-        )}_${filenameSuffix}.pdf`
+        )}_professional_datasheet.pdf`
       );
       document.body.appendChild(link);
       link.click();
@@ -331,9 +326,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
 
       setPdfStatus({
         type: "success",
-        message: `Professional datasheet generated successfully using ${
-          generatorType === "html" ? "HTML" : "ReportLab"
-        } generator!`,
+        message: "Professional datasheet generated successfully!",
       });
 
       console.log("PDF download completed successfully");
@@ -342,140 +335,6 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       setPdfStatus({
         type: "error",
         message: `Failed to generate datasheet: ${error.message}`,
-      });
-    } finally {
-      setPdfGenerating(false);
-      setTimeout(() => setPdfStatus(null), 5000);
-    }
-  };
-
-  // NEW: Function to compare both generators
-  const handleComparePDFGenerators = async () => {
-    if (!productDetails || !selectedVariantId) {
-      setPdfStatus({
-        type: "error",
-        message: "Please select a product variant first",
-      });
-      return;
-    }
-
-    try {
-      setPdfGenerating(true);
-      setPdfStatus({
-        type: "info",
-        message: "Comparing PDF generators...",
-      });
-
-      // Build the same request structure
-      const selectedVariant = productDetails.variants.find(
-        (v) => v.id === selectedVariantId
-      );
-
-      const selectedOptionsWithDetails = {};
-      Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
-        const category = productDetails.configuration_categories.find(
-          (cat) => cat.category_name === categoryName
-        );
-        const option = category?.options.find((opt) => opt.id === optionId);
-        if (option && category) {
-          selectedOptionsWithDetails[category.category_label] = {
-            option_label: option.option_label,
-            price_modifier: option.price_modifier,
-            part_code_suffix: option.part_code_suffix || "",
-          };
-        }
-      });
-
-      const selectedAccessoriesDetails = selectedAccessories
-        .map((accId) => {
-          const accessory = productDetails.accessories.find(
-            (a) => a.id === accId
-          );
-          return accessory
-            ? {
-                id: accessory.id,
-                name: accessory.name,
-                description: accessory.description,
-                part_code: accessory.part_code,
-                image_url: accessory.image_url || "",
-                price: accessory.price || 0,
-              }
-            : null;
-        })
-        .filter(Boolean);
-
-      const pdfRequest = {
-        product_name: productDetails.product.name,
-        base_part_code: productDetails.product.base_part_code,
-        final_part_code: currentPartCode,
-        variants: productDetails.variants.map((variant) => ({
-          id: variant.id,
-          variant_name: variant.variant_name,
-          system_output: variant.system_output,
-          system_power: variant.system_power,
-          efficiency: variant.efficiency,
-          base_price: variant.base_price,
-          part_code_suffix: variant.part_code_suffix || "",
-        })),
-        selected_variant_id: selectedVariantId,
-        selected_options: selectedOptionsWithDetails,
-        accessories: selectedAccessoriesDetails,
-        visual_assets: {
-          certifications: (
-            productDetails.visual_assets?.certifications ||
-            productDetails.visual_assets?.all_assets?.filter(
-              (asset) => asset.asset_type === "certification"
-            ) ||
-            []
-          ).map((cert) => ({
-            file_name: cert.file_name || cert.name || "certificate",
-            file_url: cert.file_url || cert.url || "",
-          })),
-        },
-        product: {
-          name: productDetails.product.name || "",
-          description: productDetails.product.description || "",
-          base_part_code: productDetails.product.base_part_code || "",
-          product_image_url: productDetails.product.product_image_url || "",
-          dimension_image_url: productDetails.product.dimension_image_url || "",
-        },
-      };
-
-      // Call the comparison endpoint
-      const response = await fetch(`${API_BASE_URL}/compare-pdf-generators`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(pdfRequest),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const comparisonResults = await response.json();
-      console.log("PDF Generator Comparison Results:", comparisonResults);
-
-      // Show results to user
-      setPdfStatus({
-        type: "success",
-        message: `Comparison complete! ${comparisonResults.comparison_results.recommendation}. Check console for details.`,
-        details: `HTML: ${
-          comparisonResults.comparison_results.html.success
-            ? "Success"
-            : "Failed"
-        }, ReportLab: ${
-          comparisonResults.comparison_results.reportlab.success
-            ? "Success"
-            : "Failed"
-        }`,
-      });
-    } catch (error) {
-      console.error("Error comparing PDF generators:", error);
-      setPdfStatus({
-        type: "error",
-        message: `Failed to compare generators: ${error.message}`,
       });
     } finally {
       setPdfGenerating(false);
@@ -521,85 +380,6 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       setPdfStatus({ type: "error", message: "Failed to save configuration" });
       setTimeout(() => setPdfStatus(null), 3000);
     }
-  };
-
-  // NEW: PDF Generator Selection Component
-  const PDFGeneratorSelector = () => (
-    <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-      <h4 className="text-sm font-medium text-blue-900 mb-3">PDF Generator</h4>
-      <div className="space-y-2">
-        <label className="flex items-center">
-          <input
-            type="radio"
-            name="pdfGenerator"
-            value="html"
-            checked={pdfGenerator === "html"}
-            onChange={(e) => setPdfGenerator(e.target.value)}
-            className="mr-2"
-          />
-          <span className="text-sm text-blue-800">
-            <strong>HTML Generator</strong> - Modern layout, faster generation
-          </span>
-        </label>
-        <label className="flex items-center">
-          <input
-            type="radio"
-            name="pdfGenerator"
-            value="reportlab"
-            checked={pdfGenerator === "reportlab"}
-            onChange={(e) => setPdfGenerator(e.target.value)}
-            className="mr-2"
-          />
-          <span className="text-sm text-blue-800">
-            <strong>ReportLab Generator</strong> - Precise layout, advanced
-            features
-          </span>
-        </label>
-      </div>
-    </div>
-  );
-
-  // ENHANCED: PDF Status Component with details
-  const EnhancedPDFStatus = ({ pdfStatus }) => {
-    if (!pdfStatus) return null;
-
-    const getStatusIcon = () => {
-      switch (pdfStatus.type) {
-        case "success":
-          return <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />;
-        case "error":
-          return <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />;
-        case "info":
-          return <Loader className="w-5 h-5 mr-3 flex-shrink-0 animate-spin" />;
-        default:
-          return null;
-      }
-    };
-
-    const getStatusClass = () => {
-      switch (pdfStatus.type) {
-        case "success":
-          return "bg-green-50 text-green-800 border border-green-200";
-        case "error":
-          return "bg-red-50 text-red-800 border border-red-200";
-        case "info":
-          return "bg-blue-50 text-blue-800 border border-blue-200";
-        default:
-          return "bg-gray-50 text-gray-800 border border-gray-200";
-      }
-    };
-
-    return (
-      <div className={`flex items-center p-4 rounded-lg ${getStatusClass()}`}>
-        {getStatusIcon()}
-        <div className="flex-1">
-          <span className="font-medium">{pdfStatus.message}</span>
-          {pdfStatus.details && (
-            <div className="text-sm mt-1 opacity-75">{pdfStatus.details}</div>
-          )}
-        </div>
-      </div>
-    );
   };
 
   if (loading) {
@@ -680,10 +460,29 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
         </div>
       </div>
 
-      {/* ENHANCED: Status Messages */}
+      {/* Status Messages */}
       {pdfStatus && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <EnhancedPDFStatus pdfStatus={pdfStatus} />
+          <div
+            className={`flex items-center p-4 rounded-lg ${
+              pdfStatus.type === "success"
+                ? "bg-green-50 text-green-800 border border-green-200"
+                : pdfStatus.type === "error"
+                ? "bg-red-50 text-red-800 border border-red-200"
+                : "bg-blue-50 text-blue-800 border border-blue-200"
+            }`}
+          >
+            {pdfStatus.type === "success" && (
+              <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+            )}
+            {pdfStatus.type === "error" && (
+              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+            )}
+            {pdfStatus.type === "info" && (
+              <Loader className="w-5 h-5 mr-3 flex-shrink-0 animate-spin" />
+            )}
+            <span className="font-medium">{pdfStatus.message}</span>
+          </div>
         </div>
       )}
 
@@ -869,7 +668,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
             )}
           </div>
 
-          {/* ENHANCED: Professional Summary Panel with Dual PDF Generators */}
+          {/* Professional Summary Panel */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 sticky top-8">
               <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center">
@@ -961,7 +760,6 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                 </div>
               </div>
 
-              {/* ENHANCED: Action Buttons with Dual PDF Support */}
               <div className="space-y-3">
                 <button
                   onClick={handleSaveConfiguration}
@@ -976,12 +774,8 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                   Request Quote
                 </button>
 
-                {/* NEW: PDF Generator Selection */}
-                <PDFGeneratorSelector />
-
-                {/* ENHANCED: Main PDF Download Button */}
                 <button
-                  onClick={() => handleDownloadDatasheet()}
+                  onClick={handleDownloadDatasheet}
                   disabled={pdfGenerating}
                   className="w-full border border-slate-300 text-slate-700 py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -992,99 +786,18 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                   )}
                   {pdfGenerating
                     ? "Generating..."
-                    : `Download ${
-                        pdfGenerator === "html" ? "LYLUX" : "Professional"
-                      } Datasheet`}
+                    : "Download Professional Datasheet"}
                 </button>
-
-                {/* NEW: Quick Download Buttons */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleDownloadDatasheet("html")}
-                    disabled={pdfGenerating}
-                    className="text-xs py-2 px-3 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
-                  >
-                    Quick HTML
-                  </button>
-                  <button
-                    onClick={() => handleDownloadDatasheet("reportlab")}
-                    disabled={pdfGenerating}
-                    className="text-xs py-2 px-3 bg-purple-50 text-purple-700 border border-purple-200 rounded hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  >
-                    Quick ReportLab
-                  </button>
-                </div>
-
-                {/* NEW: Developer Tools (only show in development) */}
-                {process.env.NODE_ENV === "development" && (
-                  <details className="mt-4">
-                    <summary className="text-xs text-slate-500 cursor-pointer">
-                      Developer Tools
-                    </summary>
-                    <div className="mt-2 space-y-2">
-                      <button
-                        onClick={handleComparePDFGenerators}
-                        disabled={pdfGenerating}
-                        className="w-full text-xs py-2 px-3 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors disabled:opacity-50"
-                      >
-                        Compare Generators
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(
-                              `${API_BASE_URL}/pdf-generator/health-detailed`
-                            );
-                            const health = await response.json();
-                            console.log("PDF Generator Health:", health);
-                            setPdfStatus({
-                              type: "info",
-                              message: `Health check: ${health.overall_status}. Check console for details.`,
-                            });
-                          } catch (error) {
-                            console.error("Health check failed:", error);
-                            setPdfStatus({
-                              type: "error",
-                              message:
-                                "Health check failed. Check console for details.",
-                            });
-                          }
-                          setTimeout(() => setPdfStatus(null), 3000);
-                        }}
-                        className="w-full text-xs py-2 px-3 bg-gray-50 text-gray-700 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
-                      >
-                        Health Check
-                      </button>
-                    </div>
-                  </details>
-                )}
               </div>
 
-              {/* NEW: PDF Generator Information Panel */}
               <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-800">
-                  <strong>
-                    {pdfGenerator === "html"
-                      ? "HTML Generator"
-                      : "ReportLab Generator"}{" "}
-                    Features:
-                  </strong>
+                  <strong>Professional Features:</strong>
                   <ul className="mt-2 space-y-1 text-xs">
-                    {pdfGenerator === "html" ? (
-                      <>
-                        <li>• Modern LYLUX branding</li>
-                        <li>• Fast generation</li>
-                        <li>• Responsive design</li>
-                        <li>• Web-standard fonts</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>• Technical specifications</li>
-                        <li>• Photometric data</li>
-                        <li>• Certification details</li>
-                        <li>• Professional layout</li>
-                      </>
-                    )}
+                    <li>• Technical specifications</li>
+                    <li>• Photometric data</li>
+                    <li>• Certification details</li>
+                    <li>• Professional layout</li>
                   </ul>
                 </div>
               </div>

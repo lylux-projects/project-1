@@ -502,37 +502,68 @@ async def generate_datasheet(request: PDFGenerationRequest):
         print(f"Product name: {request.product_name}")
         print(f"Request type: {type(request)}")
         
-        # Debug visual assets structure
-        print(f"Visual assets type: {type(request.visual_assets)}")
-        print(f"Visual assets content: {request.visual_assets}")
-        
-        if request.visual_assets:
-            certifications = request.visual_assets.get('certifications', [])
-            print(f"Certifications found: {len(certifications)}")
-            for i, cert in enumerate(certifications):
-                print(f"  Cert {i}: {cert.get('file_name', 'NO_NAME')} -> {cert.get('file_url', 'NO_URL')[:50]}...")
-        else:
-            print("WARNING: visual_assets is None or empty!")
-        
-        # Debug product structure
-        print(f"Product type: {type(request.product)}")
-        print(f"Product data: {request.product}")
-        
         # Convert request to dict for the generator
         product_data = request.dict()
         
-        # Verify data after conversion
-        print("=== AFTER DICT CONVERSION ===")
-        print(f"Product data keys: {list(product_data.keys())}")
+        # CRITICAL FIX: Fetch certifications from database
+        # Get the product ID from the request or fetch it
+        product_id = None
+        if request.product and 'id' in request.product:
+            product_id = request.product['id']
+        else:
+            # Try to get product ID from product name
+            product_result = supabase.table('products').select('id').eq('name', request.product_name).execute()
+            if product_result.data:
+                product_id = product_result.data[0]['id']
+        
+        if product_id:
+            print(f"=== FETCHING CERTIFICATIONS FOR PRODUCT ID: {product_id} ===")
+            
+            # Fetch visual assets from database (same logic as get_product_details_new)
+            try:
+                assets_result = supabase.table('visual_assets').select('*').or_(f'product_id.eq.{product_id},is_global.eq.true').order('display_order').execute()
+                
+                # Organize visual assets by type
+                visual_assets = {
+                    'certifications': [],
+                    'product_images': [],
+                    'dimension_images': [],
+                    'all_assets': assets_result.data
+                }
+                
+                for asset in assets_result.data:
+                    if asset['asset_type'] == 'certification':
+                        visual_assets['certifications'].append(asset)
+                    elif 'product' in asset.get('asset_category', '').lower():
+                        visual_assets['product_images'].append(asset)
+                    elif 'dimension' in asset.get('asset_category', '').lower():
+                        visual_assets['dimension_images'].append(asset)
+                
+                # Update product_data with fetched visual assets
+                product_data['visual_assets'] = visual_assets
+                
+                print(f"✓ Fetched {len(visual_assets['certifications'])} certifications from database")
+                for i, cert in enumerate(visual_assets['certifications']):
+                    print(f"  DB Cert {i}: {cert.get('file_name', 'NO_NAME')} -> {cert.get('file_url', 'NO_URL')[:50]}...")
+                
+            except Exception as e:
+                print(f"Error fetching visual assets: {e}")
+                # Use empty certifications as fallback
+                product_data['visual_assets'] = {'certifications': []}
+        else:
+            print("WARNING: Could not determine product ID - using request visual assets")
+        
+        # Debug the final visual assets structure
+        print(f"=== FINAL VISUAL ASSETS DEBUG ===")
         va = product_data.get('visual_assets', {})
-        print(f"Visual assets after conversion: {type(va)}")
+        print(f"Visual assets type: {type(va)}")
         if va:
             certs = va.get('certifications', [])
-            print(f"Certifications after conversion: {len(certs)} items")
+            print(f"Final certifications count: {len(certs)}")
             for i, cert in enumerate(certs):
-                print(f"  Backend cert {i}: {cert.get('file_name', 'NO_NAME')} -> {cert.get('file_url', 'NO_URL')[:50]}...")
+                print(f"  Final cert {i}: {cert.get('file_name', 'NO_NAME')} -> {cert.get('file_url', 'NO_URL')[:50]}...")
         else:
-            print("ERROR: visual_assets lost after conversion!")
+            print("ERROR: No visual assets in final product_data!")
         
         # Generate PDF
         generator = DatasheetGenerator()
@@ -584,3 +615,35 @@ async def save_user_configuration(config: UserConfiguration):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+# Add these endpoints to the end of your products.py file
+
+@router.post("/generate-html-datasheet")
+async def generate_html_datasheet(request: PDFGenerationRequest):
+    """Generate HTML datasheet - uses same logic as PDF generator for now"""
+    try:
+        print("=== HTML DATASHEET GENERATION ===")
+        print(f"Product name: {request.product_name}")
+        
+        # For now, redirect to the existing PDF generator
+        # Later you can implement HTML-specific logic here
+        return await generate_datasheet(request)
+        
+    except Exception as e:
+        print(f"ERROR in generate_html_datasheet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating HTML datasheet: {str(e)}")
+
+@router.post("/generate-professional-datasheet") 
+async def generate_professional_datasheet(request: PDFGenerationRequest):
+    """Generate professional datasheet - uses enhanced formatting"""
+    try:
+        print("=== PROFESSIONAL DATASHEET GENERATION ===")
+        print(f"Product name: {request.product_name}")
+        
+        # For now, redirect to the existing PDF generator
+        # Later you can add professional-specific formatting here
+        return await generate_datasheet(request)
+        
+    except Exception as e:
+        print(f"ERROR in generate_professional_datasheet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating professional datasheet: {str(e)}")

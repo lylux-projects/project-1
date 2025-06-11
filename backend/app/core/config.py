@@ -3,8 +3,18 @@ import os
 
 class Settings(BaseSettings):
     # Database settings
+    database_url: str = ""
     supabase_url: str = "https://ijhthgduecrvuwnukzcg.supabase.co"
-    supabase_key: str = "your-supabase-key-here"
+    supabase_anon_key: str = ""  # This matches SUPABASE_ANON_KEY in .env
+    supabase_service_role_key: str = ""  # This matches SUPABASE_SERVICE_ROLE_KEY in .env
+    
+    # FastAPI Configuration
+    secret_key: str = "lyluxproject007"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    
+    # Environment
+    environment: str = "development"
     
     # API settings
     api_title: str = "Lylux Product Configurator API"
