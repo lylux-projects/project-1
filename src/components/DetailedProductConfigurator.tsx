@@ -173,6 +173,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       }
 
       // Build selected options with full details for PDF
+      // Build selected options with full details for PDF
       const selectedOptionsWithDetails = {};
       Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
         const category = productDetails.configuration_categories.find(
@@ -184,6 +185,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
             option_label: option.option_label,
             price_modifier: option.price_modifier,
             part_code_suffix: option.part_code_suffix || "",
+            option_image_url: option.option_image_url || "", // Add this line
           };
         }
       });

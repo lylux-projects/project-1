@@ -8,7 +8,7 @@ from typing import Dict, Any
 from datetime import datetime
 
 class DatasheetGenerator:
-    def __init__(self):  # FIXED: Changed from _init_ to __init__
+    def __init__(self):  # FIXED: Changed from _init to _init_
         self.java_path = "java"
         self.jar_path = os.path.join(os.path.dirname(__file__), "..", "..", "lib")
         # ALL THREE JAR FILES - Windows classpath format
@@ -250,6 +250,14 @@ class DatasheetGenerator:
         # Get selected options
         selected_options = product_data.get('selected_options', {})
         
+        light_distribution_image_url = ""
+        beam_angle_option = selected_options.get('Beam Angle', {})
+        if beam_angle_option and isinstance(beam_angle_option, dict):
+            light_distribution_image_url = beam_angle_option.get('option_image_url', '')
+            print(f"=== LIGHT DISTRIBUTION DEBUG ===")
+            print(f"Beam Angle option: {beam_angle_option}")
+            print(f"Light distribution image URL: {light_distribution_image_url}")
+        
         # Logo URLs
         logo_url = "https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/Video-outtro.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL1ZpZGVvLW91dHRyby5qcGciLCJpYXQiOjE3NDk2NTQ0MDAsImV4cCI6MzMyNTQxMTg0MDB9.MRXBbzHe26_6zSrekouErabse7BR4icxXXhB81D_ItU"
         full_logo_url = "https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/footerlogo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL2Zvb3RlcmxvZ28uanBnIiwiaWF0IjoxNzQ5NjYyNzgxLCJleHAiOjMzMjU0MTI2NzgxfQ.NgJQR2DQltNrMXkbodKKaWY3uT1srZ04-mURMH3UYJg"
@@ -337,14 +345,23 @@ class DatasheetGenerator:
         <meta charset="UTF-8"/>
         <style>
             @page {{
+                size: A4;
+                margin-top: 35pt;
+                margin-bottom: 31pt;
+                margin-left: 0;
+                margin-right: 0;
+                
                 @top-center {{
                     content: element(header);
                 }}
                 @bottom-center {{
                     content: element(footer);
                 }}
-                size: A4;
-                margin: 10mm 15mm 15mm 15mm;
+            }}
+
+            .page-content {{
+                margin: 8pt 15mm 0 15mm; 
+                padding: 0;
             }}
             
             body {{
@@ -358,11 +375,22 @@ class DatasheetGenerator:
             }}
             
             .header {{
-                width: 100%;
-                padding-bottom: 5pt;
-                margin-bottom: 10pt;
+                position: running(header);
+                width: 100vw;
+                margin: 0;
+                padding: 2pt 0;
+                background: white;
+                border-bottom: none;
             }}
-            
+
+            .header-inner {{
+                width: 100%;
+                max-width: calc(210mm - 30mm);
+                margin: 0 auto;
+                padding: 0 15mm;
+                position: relative;
+            }}
+                        
             .header-content {{
                 display: table;
                 width: 100%;
@@ -383,7 +411,7 @@ class DatasheetGenerator:
             }}
             
             .company-logo {{
-                height: 35pt;
+                height: 30pt;
                 width: auto;
                 margin-bottom: 2pt;
             }}
@@ -412,50 +440,52 @@ class DatasheetGenerator:
             }}
             
             .product-category {{
-                font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
-                background-color: #4a4a4a;
-                color: white;
-                padding: 0 8pt;
-                font-size: 15pt;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 0.5pt;
-                border-radius: 2pt;
-                display: inline-block;
-                vertical-align: top;
-                height: 35pt;
-                line-height: 35pt;
-                min-width: 400pt;
-                text-align: right;
-                position: absolute;
-                left: 45pt;
-                top: 0pt;
-            }}
+            font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
+            background-color: #4a4a4a;
+            color: white;
+            padding: 0 8pt;
+            font-size: 15pt;
+            font-weight: light;
+            text-transform: uppercase;
+            letter-spacing: 2pt;
+            border-radius: 3pt;
+            display: inline-block;
+            vertical-align: top;
+            height: 30pt;
+            line-height: 28pt;
+            text-align: right;
+            position: absolute;
+            left: 37pt;
+            top: 0pt;
+            right: 72pt;
+        }}
 
             .green-rectangle {{
-                background-color: #90bd2c;
-                color: white;
-                padding: 0 8pt;
-                font-size: 8pt;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 0.5pt;
-                border-radius: 2pt;
-                display: inline-block;
-                vertical-align: top;
-                height: 35pt;
-                line-height: 35pt;
-                min-width: 20pt;
-                text-align: center;
-                position: absolute;
-                left: 470pt;
-                top: 0pt;
-            }}
+            background-color: #90bd2c;
+            color: white;
+            padding: 0;
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5pt;
+            border-radius: 3pt 0 0 3pt;
+            display: block;
+            height: 30pt;
+            line-height: 35pt;
+            width: 24pt;
+            text-align: center;
+            position: absolute;
+            right: 0;
+            top: 1.7pt;
+        }}
             
             .divider {{
                 border-bottom: 2px solid #333;
                 margin-top: 8pt;
-                width: 100%;
+                width: 120vw;
+                position: relative;
+                left: -15mm;
+                right: -15mm;
                 clear: both;
             }}
             
@@ -673,6 +703,16 @@ class DatasheetGenerator:
                 display: inline-block;
             }}
             
+            .light-distribution-image {{
+                max-width: 100%;
+                height: auto;
+                max-height: 80pt;
+                border: 1px solid #ddd;
+                border-radius: 2pt;
+                display: block;
+                margin: 0 auto;
+            }}
+            
             /* Footer CSS */
             .footer {{
                 position: running(footer);
@@ -680,32 +720,38 @@ class DatasheetGenerator:
                 font-size: 10pt;
                 font-weight: normal;
                 color: #333;
-                border-top: 2px solid #333;
-                padding: 0pt 2pt;
+                border-top: 1px solid #333;
+                padding: 0 0 0 0;
                 background: white;
                 width: 100%;
+                margin: 0;
+                box-sizing: border-box;
             }}
 
             .footer-table {{
                 width: 100%;
                 border-collapse: collapse;
+                background: white;
+                border-spacing: 0;
             }}
 
             .footer-table td {{
                 vertical-align: middle;
-                padding: 2pt 5pt;
+                padding: 1pt 1pt;
             }}
 
             .footer-left {{
                 font-family: 'YuGothic', Arial, sans-serif;
-                text-align: left;
-                font-weight: bold;
-                width: 33%;
+                text-align: center;
+                font-weight: light;
+                font-size: 7pt;
+                width: 37%;
+                padding-left: 25mm;
             }}
 
             .footer-center {{
                 text-align: center;
-                width: 34%;
+                width: 30%;
             }}
 
             .footer-logo {{
@@ -714,31 +760,69 @@ class DatasheetGenerator:
 
             .footer-right {{
                 font-family: 'YuGothic', Arial, sans-serif;
-                text-align: right;
+                text-align: center;
                 font-weight: bold;
-                width: 33%;
+                width: 31%;
+                background-color: white;
+                color: black;
+                padding-right: 8pt;
+                padding-left: 8pt;
             }}
+            
+            .footer-green-cell {{
+                width: 8mm;
+                background-color: #90bd2c;
+                padding: 0;
+                margin: 0;
+                height: 100%;
+                position: relative;
+                border-radius: 0;
+                border: none;
+            }}
+            
+            .green-extension {{
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 25mm;
+                height: 100%;
+                background-color: #90bd2c;
+                z-index: 10;
+            }}
+            
+            .green-extension::after {{
+                content: '';
+                position: absolute;
+                top: 0;
+                right: -15mm;
+                width: 15mm;
+                height: 200%;
+                background-color: #90bd2c;
+            }}
+            
         </style>
     </head>
     <body>
         <div class="page-content">
             <!-- Header with FIXED category rectangle next to logo -->
+            <!-- Full-width Header -->
             <div class="header">
-                <div class="header-content">
-                    <div class="company-info">
-                        <div class="logo-section">
-                            <!-- Try the logo image first -->
-                            <img src="{logo_url}" alt="LYLUX" class="company-logo" 
-                                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-                            <!-- Fallback text logo (hidden by default) -->
-                            <div class="company-logo-text" style="display: none;">LYLUX</div>
+                <div class="header-inner">
+                    <div class="header-content">
+                        <div class="company-info">
+                            <div class="logo-section">
+                                <!-- Try the logo image first -->
+                                <img src="{logo_url}" alt="LYLUX" class="company-logo" 
+                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                                <!-- Fallback text logo (hidden by default) -->
+                                <div class="company-logo-text" style="display: none;">LYLUX</div>
+                            </div>
+                            <!-- FIXED Product Category rectangle - dark gray with white text -->
+                            <div class="product-category">{product_category.upper()}</div>
                         </div>
-                        <!-- FIXED Product Category rectangle - dark gray with white text -->
-                        <div class="product-category">{product_category.upper()}</div>
-                        <div class="green-rectangle"></div>
                     </div>
                 </div>
-                <div class="divider"></div>
+                <div class="green-rectangle"></div>
             </div>
 
             <!-- Product Title -->
@@ -817,15 +901,15 @@ class DatasheetGenerator:
                         <div class="section">
                             <div class="section-header">LIGHT DISTRIBUTION</div>
                             <div class="light-distribution-container">
-                                <!-- Add light distribution content here -->
+                                {f'<img src="{light_distribution_image_url}" alt="Light Distribution Chart" class="light-distribution-image"/>' if light_distribution_image_url else '''
                                 <div style="height: 60pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
                                     Light Distribution Chart
-                                </div>
+                                </div>'''}
                             </div>
                         </div>
                     
                         <!-- SPACER TO PUSH CONTENT DOWN -->
-                        <div style="height: 40pt;"></div>
+                        <div style="height: 1pt;"></div>
                     
                         <!-- ACCESSORIES (MOVED DOWN) -->
                         <div class="section">
@@ -858,14 +942,16 @@ class DatasheetGenerator:
             <table class="footer-table">
                 <tr>
                     <td class="footer-left">
-                        All rights reserved Lylux 2024<br/>
-                        www.lylux-group.com
+                        All rights reserved Lylux 2024 | www.lylux-group.com
                     </td>
                     <td class="footer-center">
                         <img src="{full_logo_url}" alt="LYLUX" class="footer-logo" onerror="this.style.display='none';" />
                     </td>
                     <td class="footer-right">
                         1
+                    </td>
+                    <td class="footer-green-cell">
+                        <div class="green-extension"></div>
                     </td>
                 </tr>
             </table>
