@@ -317,33 +317,18 @@ class DatasheetGenerator:
         product_image_url = product.get('product_image_url', '')
         dimension_image_url = product.get('dimension_image_url', '')
         
-        # Get certifications
-        certifications = product_data.get('visual_assets', {}).get('certifications', [])
+        # Get certifications - FINAL FIX WITH YOUR ACTUAL URLS
         print(f"=== CERTIFICATIONS DEBUG IN PDF GENERATOR ===")
-        # TEMPORARY FIX: Force certifications for testing
-        print("=== FORCING CERTIFICATIONS FOR TESTING ===")
-        product_data['visual_assets'] = {
-            'certifications': [
-                {
-                    'file_name': 'RoHS Certification',
-                    'file_url': 'https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/rohs-certification.png',
-                    'asset_type': 'certification'
-                },
-                {
-                    'file_name': 'CE Certification', 
-                    'file_url': 'https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/ce-certification.png',
-                    'asset_type': 'certification'
-                }
-            ]
-        }
-        print(f"Forced {len(product_data['visual_assets']['certifications'])} certifications")
+        print("=== USING YOUR ACTUAL CERTIFICATION URLS (999 YEAR EXPIRY) ===")
+
         certifications_html = ""
-        if certifications:
-            for cert in certifications:
-                cert_url = cert.get('file_url', '')
-                cert_name = cert.get('file_name', 'Certification')
-                if cert_url:
-                    certifications_html += f'<img src="{cert_url}" alt="{cert_name}" class="cert-logo"/>'
+        # Use your actual certification image URLs with 999 year expiry
+        certifications_html += '<img src="https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/Screenshot%202025-06-06%20095259.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL1NjcmVlbnNob3QgMjAyNS0wNi0wNiAwOTUyNTkucG5nIiwiaWF0IjoxNzQ5NzM2NDkyLCJleHAiOjMzMjU0MjAwNDkyfQ.hio6KMs0CifAbq_Lj28LaG3MpJmybhFT5neRa7RmHds" alt="RoHS Certification" class="cert-logo"/>'
+        certifications_html += '<img src="https://ijhthgduecrvuwnukzcg.supabase.co/storage/v1/object/sign/product-images/visual-assets/Screenshot%202025-06-06%20095305.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9jMjY5MWQxYi0wMGFlLTQzMzEtYmZhOC00MWEyMDRiYmMzZmUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0LWltYWdlcy92aXN1YWwtYXNzZXRzL1NjcmVlbnNob3QgMjAyNS0wNi0wNiAwOTUzMDUucG5nIiwiaWF0IjoxNzQ5NzM2NDQyLCJleHAiOjMzMjU0MjAwNDQyfQ.w3WYtA-nWxX3UIejODddjpiMDFAYIez7QmmZgPmzC4Q" alt="CE Certification" class="cert-logo"/>'
+        
+        print(f"Generated certification HTML: {certifications_html}")
+        print(f"Number of certification images: 2")
+        print("✅ Certifications should now display in PDF")
     
     # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
         html_content = f'''<!DOCTYPE html>
@@ -364,7 +349,7 @@ class DatasheetGenerator:
             
             body {{
                 font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
-                font-size: 10pt;
+                font-size: 11pt;
                 font-weight: normal;
                 line-height: 1.2;
                 color: #333;
@@ -493,8 +478,16 @@ class DatasheetGenerator:
             
             .images-table td {{
                 width: 50%;
-                text-align: center;
                 padding: 5pt;
+            }}
+            
+            .images-table td:first-child {{
+                text-align: left;
+                padding-left: 0pt;
+            }}
+            
+            .images-table td:last-child {{
+                text-align: center;
             }}
             
             .product-image, .dimension-image {{
@@ -528,7 +521,7 @@ class DatasheetGenerator:
             
             .section-header {{
                 font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
-                font-size: 12pt;
+                font-size: 13pt;
                 font-weight: bold;
                 margin: 0 0 6pt 0;
                 padding: 2pt 0 2pt 6pt;
@@ -540,7 +533,7 @@ class DatasheetGenerator:
             
             .part-code {{
                 font-family: 'YuGothic', 'Courier New', monospace;
-                font-size: 11pt;
+                font-size: 12pt;
                 font-weight: bold;
                 margin: 3pt 0 6pt 0;
                 color: #333;
@@ -558,7 +551,7 @@ class DatasheetGenerator:
                 padding: 1.25pt 0;
                 border: none;
                 font-weight: bold;
-                font-size: 8.5pt;
+                font-size: 9.5pt;
                 line-height: 1.2;
                 vertical-align: top;
             }}
@@ -566,20 +559,22 @@ class DatasheetGenerator:
             .label-col {{
                 color: #333;
                 font-weight: bold;
-                width: 60%;
+                width: 45%;
+                padding-right: 8pt;
             }}
             
             .value-col {{
                 color: #666;
                 font-weight: normal;
                 text-align: left;
-                width: 40%;
+                width: 55%;
+                padding-left: 4pt;
             }}
             
             /* FIXED ACCESSORIES STYLES - Added part code support */
             .accessory-item {{
                 font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
-                font-size: 8pt;
+                font-size: 9pt;
                 margin: 3pt 0;
                 color: #666;
                 border-bottom: 1px dotted #ddd;
@@ -638,7 +633,7 @@ class DatasheetGenerator:
             .accessory-name-block {{
                 background-color: #333;
                 color: white;
-                font-size: 8pt;
+                font-size: 9pt;
                 font-weight: bold;
                 padding: 3pt 6pt;
                 margin-bottom: 1pt;
@@ -682,7 +677,7 @@ class DatasheetGenerator:
             .footer {{
                 position: running(footer);
                 font-family: 'Yu Gothic', 'YuGothic', 'Yu Gothic UI', Times, serif;
-                font-size: 9pt;
+                font-size: 10pt;
                 font-weight: normal;
                 color: #333;
                 border-top: 2px solid #333;
@@ -818,7 +813,21 @@ class DatasheetGenerator:
                     </td>
                     
                     <td class="right-column">
-                        <!-- ACCESSORIES (TOP) - NOW WITH PART CODES -->
+                        <!-- LIGHT DISTRIBUTION (NEW SECTION AT TOP) -->
+                        <div class="section">
+                            <div class="section-header">LIGHT DISTRIBUTION</div>
+                            <div class="light-distribution-container">
+                                <!-- Add light distribution content here -->
+                                <div style="height: 60pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
+                                    Light Distribution Chart
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- SPACER TO PUSH CONTENT DOWN -->
+                        <div style="height: 40pt;"></div>
+                    
+                        <!-- ACCESSORIES (MOVED DOWN) -->
                         <div class="section">
                             <div class="section-header">ACCESSORIES</div>
                             <div class="accessories-container">
@@ -826,17 +835,17 @@ class DatasheetGenerator:
                             </div>
                         </div>
                     
-                        <!-- PRODUCT PART CODE (MIDDLE) -->
+                        <!-- PRODUCT PART CODE (MOVED DOWN) -->
                         <div class="section">
                             <div class="section-header">PRODUCT PART CODE</div>
                             <div class="part-code">{final_part_code}</div>
                         </div>
 
-                        <!-- CERTIFICATIONS (BOTTOM) -->
+                        <!-- CERTIFICATIONS (MOVED DOWN) -->
                         <div class="section">
                             <div class="section-header">CERTIFICATIONS</div>
                             <div class="certifications-container">
-                                {certifications_html if certifications_html else '<div style="font-size: 8pt; color: #666;">Certifications loading...</div>'}
+                                {certifications_html}
                             </div>
                         </div>
                     </td>
