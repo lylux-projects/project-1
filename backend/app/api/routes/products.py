@@ -286,8 +286,8 @@ async def get_product_details_new(product_id: int):
         
         configuration_categories = []
         for cat in config_cats_result.data:
-            # Get options for this category
-            options_result = supabase.table('configuration_options').select('*').eq('category_id', cat['id']).order('display_order').execute()
+            # Get options for this category - make sure to include option_image_url
+            options_result = supabase.table('configuration_options').select('id, category_id, option_value, option_label, part_code_suffix, price_modifier, is_default, display_order, option_image_url').eq('category_id', cat['id']).order('display_order').execute()
             cat['options'] = options_result.data if options_result.data else []
             configuration_categories.append(cat)
         
