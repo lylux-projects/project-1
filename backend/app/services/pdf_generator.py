@@ -239,6 +239,14 @@ class DatasheetGenerator:
         product = product_data.get('product', {})
         description = product.get('description')
         
+        print(f"=== PRODUCT DEBUG IN PDF GENERATOR ===")
+        print(f"Product data keys: {list(product.keys())}")
+        print(f"D1: {product.get('d1_mm', 'NOT_FOUND')}")
+        print(f"H: {product.get('h_mm', 'NOT_FOUND')}")
+        print(f"D2: {product.get('d2_mm', 'NOT_FOUND')}")
+        print(f"Cutout: {product.get('cutout_mm', 'NOT_FOUND')}")
+        print(f"Full product data: {product}")
+        
         # Get product category from database
         product_category = product_data.get('product_category', 'DOWNLIGHT')
         print(f"=== PRODUCT CATEGORY DEBUG ===")
@@ -249,6 +257,60 @@ class DatasheetGenerator:
         
         # Get selected options
         selected_options = product_data.get('selected_options', {})
+        
+        # EXTRACT SDCM VALUE FROM SELECTED OPTIONS
+        print(f"=== SDCM DEBUG ===")
+        print(f"Selected options: {selected_options}")
+        
+        # Try to get SDCM from multiple possible sources
+        sdcm_value = "3"  # Default value
+        
+        # Method 1: Check if SDCM is in selected_options directly
+        if 'SDCM' in selected_options:
+            sdcm_data = selected_options['SDCM']
+            if isinstance(sdcm_data, dict):
+                sdcm_value = sdcm_data.get('option_label', '3')
+            else:
+                sdcm_value = str(sdcm_data)
+            print(f"✓ SDCM from selected_options['SDCM']: {sdcm_value}")
+        
+        # Method 2: Check if it's passed as a separate field
+        elif 'selected_sdcm' in product_data:
+            sdcm_value = str(product_data['selected_sdcm'])
+            print(f"✓ SDCM from product_data['selected_sdcm']: {sdcm_value}")
+        
+        # Method 3: Check if it's in the final part code
+        elif 'SDCM' in final_part_code:
+            import re
+            sdcm_match = re.search(r'SDCM(\d+)', final_part_code)
+            if sdcm_match:
+                sdcm_value = sdcm_match.group(1)
+                print(f"✓ SDCM extracted from part code: {sdcm_value}")
+        
+        print(f"Final SDCM value for PDF: {sdcm_value}")
+        
+        product_features = product_data.get('product_features', [])
+        print(f"=== MATERIAL DEBUG ===")
+        print(f"Product features: {product_features}")
+        for i, feature in enumerate(product_features):
+            print(f"Feature {i}: {feature}")
+            print(f"  Keys: {list(feature.keys())}")
+            if 'material' in str(feature).lower():
+                print(f"  *** FOUND MATERIAL FEATURE: {feature}")
+
+        material_value = "Die Cast Aluminium"  # Default value
+        for feature in product_features:
+            feature_label = feature.get('feature_label', '').lower()
+            feature_type = feature.get('feature_type', '').lower()
+            
+            # Check for material in label, type, or if it contains "material"
+            if (feature_label == 'material' or 
+                feature_label == 'body material' or 
+                feature_type == 'material' or
+                'material' in feature_label):
+                material_value = feature.get('feature_value', material_value)
+                print(f"✓ Material found: {material_value}")
+                break
         
         light_distribution_image_url = ""
         beam_angle_option = selected_options.get('Beam Angle', {})
@@ -338,7 +400,7 @@ class DatasheetGenerator:
         print(f"Number of certification images: 2")
         print("✅ Certifications should now display in PDF")
     
-    # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
+        # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
         html_content = f'''<!DOCTYPE html>
     <html>
     <head>
@@ -844,11 +906,11 @@ class DatasheetGenerator:
                         <div class="section">
                             <div class="section-header">GENERAL</div>
                             <table class="spec-table">
-                                <tr><td class="label-col">Material</td><td class="value-col">Die Cast Aluminium</td></tr>
+                                <tr><td class="label-col">Material</td><td class="value-col">{material_value}</td></tr>
                                 <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
                                 <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
                                 <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
-                                <tr><td class="label-col">IP</td><td class="value-col">IP20</td></tr>
+                                <tr><td class="label-col">IP</td><td class="value-col">{selected_options.get('IP Rating', {}).get('option_label', 'IP20')}</td></tr>
                             </table>
                         </div>
 
@@ -859,9 +921,9 @@ class DatasheetGenerator:
                                 <tr><td class="label-col">CCT</td><td class="value-col">{selected_options.get('Colour Temperature', {}).get('option_label', '2700K')}</td></tr>
                                 <tr><td class="label-col">CRI</td><td class="value-col">{selected_options.get('CRI', {}).get('option_label', '90')}</td></tr>
                                 <tr><td class="label-col">LED Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm</td></tr>
-                                <tr><td class="label-col">System Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm-15%</td></tr>
-                                <tr><td class="label-col">Lifetime</td><td class="value-col">50000h@l80B10</td></tr>
-                                <tr><td class="label-col">SDCM</td><td class="value-col">3</td></tr>
+                                <tr><td class="label-col">System Output</td><td class="value-col">{(selected_variant.get('system_output', 440) * 0.85):.2f}lm</td></tr>
+                                <tr><td class="label-col">Lifetime</td><td class="value-col">50000 Hours</td></tr>
+                                <tr><td class="label-col">SDCM</td><td class="value-col">{sdcm_value}</td></tr>
                             </table>
                         </div>
 
@@ -888,10 +950,10 @@ class DatasheetGenerator:
                         <div class="section">
                             <div class="section-header">DIMENSION</div>
                             <table class="spec-table">
-                                <tr><td class="label-col">D1</td><td class="value-col">50mm</td></tr>
-                                <tr><td class="label-col">H</td><td class="value-col">50mm</td></tr>
-                                <tr><td class="label-col">D2</td><td class="value-col">55mm</td></tr>
-                                <tr><td class="label-col">Cutout</td><td class="value-col">50mm</td></tr>
+                                <tr><td class="label-col">D1</td><td class="value-col">{product.get('d1_mm', 50)}mm</td></tr>
+                                <tr><td class="label-col">H</td><td class="value-col">{product.get('h_mm', 50)}mm</td></tr>
+                                <tr><td class="label-col">D2</td><td class="value-col">{product.get('d2_mm', 55)}mm</td></tr>
+                                <tr><td class="label-col">Cutout</td><td class="value-col">{product.get('cutout_mm', 50)}mm</td></tr>
                             </table>
                         </div>
                     </td>

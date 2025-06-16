@@ -8,6 +8,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader,
+  Edit3,
 } from "lucide-react";
 
 // REAL API service - Replace YOUR_BACKEND_URL with your actual backend URL
@@ -62,6 +63,19 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
   const [selectedAccessories, setSelectedAccessories] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [currentPartCode, setCurrentPartCode] = useState("");
+  
+  // SDCM state - kept separate for UI control
+  const [selectedSDCM, setSelectedSDCM] = useState(3); // Default to 3
+
+  // Housing Color state
+  const [selectedHousingColor, setSelectedHousingColor] = useState("BLACK"); // Default to BLACK
+  const [customHousingColor, setCustomHousingColor] = useState("");
+  const [showHousingCustomInput, setShowHousingCustomInput] = useState(false);
+
+  // Reflector Color state  
+  const [selectedReflectorColor, setSelectedReflectorColor] = useState("BLACK"); // Default to BLACK
+  const [customReflectorColor, setCustomReflectorColor] = useState("");
+  const [showReflectorCustomInput, setShowReflectorCustomInput] = useState(false);
 
   useEffect(() => {
     loadProductDetails();
@@ -84,7 +98,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
     if (selectedVariantId && Object.keys(selectedOptions).length > 0) {
       updatePriceAndPartCode();
     }
-  }, [selectedVariantId, selectedOptions, selectedAccessories]);
+  }, [selectedVariantId, selectedOptions, selectedAccessories, selectedSDCM, selectedHousingColor, customHousingColor, selectedReflectorColor, customReflectorColor]);
 
   const loadProductDetails = async () => {
     try {
@@ -136,6 +150,23 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       }
     });
 
+    // Add SDCM to part code
+    if (selectedSDCM) {
+      partCodeParts.push(`SDCM${selectedSDCM}`);
+    }
+
+    // Add Housing Color to part code
+    const finalHousingColor = selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor;
+    if (finalHousingColor) {
+      partCodeParts.push(`H${finalHousingColor.replace(/\s+/g, '').toUpperCase()}`);
+    }
+
+    // Add Reflector Color to part code
+    const finalReflectorColor = selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor;
+    if (finalReflectorColor) {
+      partCodeParts.push(`R${finalReflectorColor.replace(/\s+/g, '').toUpperCase()}`);
+    }
+
     // Add accessory prices
     selectedAccessories.forEach((accId) => {
       const accessory = productDetails.accessories.find((a) => a.id === accId);
@@ -146,6 +177,26 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
 
     setCurrentPrice(totalPrice);
     setCurrentPartCode(partCodeParts.join("-"));
+  };
+
+  const handleHousingColorChange = (color) => {
+    setSelectedHousingColor(color);
+    if (color === "CUSTOM") {
+      setShowHousingCustomInput(true);
+    } else {
+      setShowHousingCustomInput(false);
+      setCustomHousingColor("");
+    }
+  };
+
+  const handleReflectorColorChange = (color) => {
+    setSelectedReflectorColor(color);
+    if (color === "CUSTOM") {
+      setShowReflectorCustomInput(true);
+    } else {
+      setShowReflectorCustomInput(false);
+      setCustomReflectorColor("");
+    }
   };
 
   const handleDownloadDatasheet = async () => {
@@ -173,7 +224,6 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       }
 
       // Build selected options with full details for PDF
-      // Build selected options with full details for PDF
       const selectedOptionsWithDetails = {};
       Object.entries(selectedOptions).forEach(([categoryName, optionId]) => {
         const category = productDetails.configuration_categories.find(
@@ -185,10 +235,42 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
             option_label: option.option_label,
             price_modifier: option.price_modifier,
             part_code_suffix: option.part_code_suffix || "",
-            option_image_url: option.option_image_url || "", // Add this line
+            option_image_url: option.option_image_url || "",
           };
         }
       });
+
+      // ADD SDCM TO SELECTED OPTIONS
+      if (selectedSDCM) {
+        selectedOptionsWithDetails["SDCM"] = {
+          option_label: selectedSDCM.toString(),
+          price_modifier: 0,
+          part_code_suffix: `SDCM${selectedSDCM}`,
+          option_image_url: "",
+        };
+      }
+
+      // ADD HOUSING COLOR TO SELECTED OPTIONS
+      const finalHousingColor = selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor;
+      if (finalHousingColor) {
+        selectedOptionsWithDetails["Housing Color"] = {
+          option_label: finalHousingColor,
+          price_modifier: 0,
+          part_code_suffix: `H${finalHousingColor.replace(/\s+/g, '').toUpperCase()}`,
+          option_image_url: "",
+        };
+      }
+
+      // ADD REFLECTOR COLOR TO SELECTED OPTIONS
+      const finalReflectorColor = selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor;
+      if (finalReflectorColor) {
+        selectedOptionsWithDetails["Reflector Color"] = {
+          option_label: finalReflectorColor,
+          price_modifier: 0,
+          part_code_suffix: `R${finalReflectorColor.replace(/\s+/g, '').toUpperCase()}`,
+          option_image_url: "",
+        };
+      }
 
       // Get selected accessories details
       const selectedAccessoriesDetails = selectedAccessories
@@ -210,10 +292,19 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
         .filter(Boolean);
 
       // Build professional PDF request
+      console.log("=== FRONTEND PDF REQUEST DEBUG ===");
+      console.log("Selected SDCM:", selectedSDCM);
+      console.log("Selected Housing Color:", finalHousingColor);
+      console.log("Selected Reflector Color:", finalReflectorColor);
+      console.log("Final part code:", currentPartCode);
+      console.log("All selected options:", selectedOptionsWithDetails);
+
       const pdfRequest = {
         product_name: productDetails.product.name,
         base_part_code: productDetails.product.base_part_code,
         final_part_code: currentPartCode,
+
+        product_features: productDetails.features || [],
 
         // Convert variants to match backend model
         variants: productDetails.variants.map((variant) => ({
@@ -227,10 +318,15 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
         })),
 
         selected_variant_id: selectedVariantId,
-        selected_options: selectedOptionsWithDetails,
+        selected_options: selectedOptionsWithDetails, // This now includes SDCM and colors
         accessories: selectedAccessoriesDetails,
 
-        // Handle visual assets - check different possible structures
+        // ALSO pass all custom selections as separate fields for extra safety
+        selected_sdcm: selectedSDCM,
+        selected_housing_color: finalHousingColor,
+        selected_reflector_color: finalReflectorColor,
+
+        // Handle visual assets
         visual_assets: {
           certifications: (
             productDetails.visual_assets?.certifications ||
@@ -246,31 +342,23 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
 
         // Convert product to match backend model
         product: {
+          id: productDetails.product.id || 1,
           name: productDetails.product.name || "",
           description: productDetails.product.description || "",
           base_part_code: productDetails.product.base_part_code || "",
           product_image_url: productDetails.product.product_image_url || "",
           dimension_image_url: productDetails.product.dimension_image_url || "",
+          d1_mm: productDetails.product.d1_mm || 50,
+          h_mm: productDetails.product.h_mm || 50,
+          d2_mm: productDetails.product.d2_mm || 55,
+          cutout_mm: productDetails.product.cutout_mm || 50,
         },
       };
 
       // Enhanced debugging
       console.log("=== REAL FRONTEND DEBUG ===");
       console.log("API Base URL:", API_BASE_URL);
-      console.log(
-        "PDF Request URL:",
-        `${API_BASE_URL}/generate-professional-datasheet`
-      );
       console.log("Full PDF request:", JSON.stringify(pdfRequest, null, 2));
-      console.log("Visual assets being sent:", pdfRequest.visual_assets);
-      console.log(
-        "Certifications being sent:",
-        pdfRequest.visual_assets.certifications
-      );
-      console.log(
-        "Number of certifications:",
-        pdfRequest.visual_assets.certifications?.length || 0
-      );
 
       // Call the REAL backend endpoint
       const response = await fetch(`${API_BASE_URL}/generate-datasheet`, {
@@ -367,6 +455,9 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       variant_id: selectedVariantId,
       selected_options: selectedOptions,
       selected_accessories: selectedAccessories,
+      selected_sdcm: selectedSDCM,
+      selected_housing_color: selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor,
+      selected_reflector_color: selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor,
       configuration_name: `${productDetails?.product.name} Configuration`,
     };
 
@@ -581,12 +672,141 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
               </div>
             ))}
 
+            {/* SDCM Selection */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  {(productDetails.configuration_categories?.length || 0) + 2}
+                </span>
+                SDCM
+                <span className="text-red-500 ml-2 text-lg">*</span>
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[2, 3].map((sdcmValue) => (
+                  <button
+                    key={sdcmValue}
+                    onClick={() => setSelectedSDCM(sdcmValue)}
+                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                      selectedSDCM === sdcmValue
+                        ? "border-blue-500 bg-blue-50 shadow-lg"
+                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                    }`}
+                  >
+                    <div className="text-lg font-semibold text-slate-900 mb-2">
+                      {sdcmValue}
+                    </div>
+                    {selectedSDCM === sdcmValue && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-blue-500" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Housing Color Selection */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  {(productDetails.configuration_categories?.length || 0) + 3}
+                </span>
+                Housing Color
+                <span className="text-red-500 ml-2 text-lg">*</span>
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
+                  <button
+                    key={colorValue}
+                    onClick={() => handleHousingColorChange(colorValue)}
+                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                      selectedHousingColor === colorValue
+                        ? "border-blue-500 bg-blue-50 shadow-lg"
+                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                    }`}
+                  >
+                    <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
+                      {colorValue === "CUSTOM" && <Edit3 className="w-4 h-4 mr-2" />}
+                      {colorValue}
+                    </div>
+                    {selectedHousingColor === colorValue && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-blue-500" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {showHousingCustomInput && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Enter Custom Housing Color:
+                  </label>
+                  <input
+                    type="text"
+                    value={customHousingColor}
+                    onChange={(e) => setCustomHousingColor(e.target.value)}
+                    placeholder="e.g., Silver, Bronze, RAL5015..."
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Reflector Color Selection */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  {(productDetails.configuration_categories?.length || 0) + 4}
+                </span>
+                Reflector Color
+                <span className="text-red-500 ml-2 text-lg">*</span>
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
+                  <button
+                    key={colorValue}
+                    onClick={() => handleReflectorColorChange(colorValue)}
+                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                      selectedReflectorColor === colorValue
+                        ? "border-blue-500 bg-blue-50 shadow-lg"
+                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                    }`}
+                  >
+                    <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
+                      {colorValue === "CUSTOM" && <Edit3 className="w-4 h-4 mr-2" />}
+                      {colorValue}
+                    </div>
+                    {selectedReflectorColor === colorValue && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-blue-500" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {showReflectorCustomInput && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Enter Custom Reflector Color:
+                  </label>
+                  <input
+                    type="text"
+                    value={customReflectorColor}
+                    onChange={(e) => setCustomReflectorColor(e.target.value)}
+                    placeholder="e.g., Silver, Bronze, RAL5015..."
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Accessories */}
             {productDetails.accessories?.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
                 <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
                   <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
-                    {(productDetails.configuration_categories?.length || 0) + 2}
+                    {(productDetails.configuration_categories?.length || 0) + 5}
                   </span>
                   Optional Accessories
                 </h3>
@@ -723,6 +943,36 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                   }
                 )}
 
+                {/* SDCM Selection Display */}
+                {selectedSDCM && (
+                  <div className="flex justify-between py-3 border-b border-slate-100">
+                    <span className="text-slate-600 font-medium">SDCM:</span>
+                    <span className="font-semibold text-slate-900">
+                      {selectedSDCM}
+                    </span>
+                  </div>
+                )}
+
+                {/* Housing Color Display */}
+                {selectedHousingColor && (
+                  <div className="flex justify-between py-3 border-b border-slate-100">
+                    <span className="text-slate-600 font-medium">Housing Color:</span>
+                    <span className="font-semibold text-slate-900">
+                      {selectedHousingColor === "CUSTOM" ? customHousingColor || "Custom" : selectedHousingColor}
+                    </span>
+                  </div>
+                )}
+
+                {/* Reflector Color Display */}
+                {selectedReflectorColor && (
+                  <div className="flex justify-between py-3 border-b border-slate-100">
+                    <span className="text-slate-600 font-medium">Reflector Color:</span>
+                    <span className="font-semibold text-slate-900">
+                      {selectedReflectorColor === "CUSTOM" ? customReflectorColor || "Custom" : selectedReflectorColor}
+                    </span>
+                  </div>
+                )}
+
                 {selectedAccessories.length > 0 && (
                   <div className="pt-2">
                     <div className="text-sm font-semibold text-slate-900 mb-3">
@@ -812,3 +1062,4 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
 };
 
 export default EnhancedProductConfigurator;
+                  
