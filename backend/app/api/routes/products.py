@@ -27,7 +27,6 @@ class Category(BaseModel):
     id: int
     name: str
     slug: str
-    description: Optional[str]
     category_image_url: Optional[str]
     display_order: int
 
@@ -185,7 +184,7 @@ async def debug_product_detailed(product_id: int):
     try:
         # Step 1: Get product
         result["step1"] = "Getting product..."
-        product_result = supabase.table('products').select('*').eq('id', product_id).execute()
+        product_result = supabase.table('products').select('id, category_id, name, base_part_code, description, product_image_url, dimension_image_url, d1_mm, h_mm, d2_mm, cutout_mm, is_active, created_at').eq('id', product_id).execute()
         if not product_result.data:
             return {"error": "Product not found", "step": "step1"}
         result["step1"] = "✓ Product found"
@@ -272,11 +271,18 @@ async def get_product_details_new(product_id: int):
     """Get detailed product information including global visual assets"""
     try:
         # Get product basic info
-        product_result = supabase.table('products').select('*').eq('id', product_id).execute()
+        product_result = supabase.table('products').select('id, category_id, name, base_part_code, description, product_image_url, dimension_image_url, d1_mm, h_mm, d2_mm, cutout_mm, is_active, created_at').eq('id', product_id).execute()
         if not product_result.data:
             raise HTTPException(status_code=404, detail="Product not found")
         
         product = product_result.data[0]
+        
+        print(f"=== BACKEND PRODUCT DEBUG ===")
+        print(f"Product keys from database: {list(product.keys())}")
+        print(f"D1 from DB: {product.get('d1_mm', 'NOT_FOUND')}")
+        print(f"H from DB: {product.get('h_mm', 'NOT_FOUND')}")
+        print(f"D2 from DB: {product.get('d2_mm', 'NOT_FOUND')}")
+        print(f"Cutout from DB: {product.get('cutout_mm', 'NOT_FOUND')}")
         
         # Get product variants
         variants_result = supabase.table('product_variants').select('*').eq('product_id', product_id).eq('is_active', True).order('display_order').execute()
@@ -366,7 +372,7 @@ async def get_product_details(product_id: int):
     """Get detailed product information"""
     try:
         # Get product basic info
-        product_result = supabase.table('products').select('*').eq('id', product_id).execute()
+        product_result = supabase.table('products').select('id, category_id, name, base_part_code, description, product_image_url, dimension_image_url, d1_mm, h_mm, d2_mm, cutout_mm, is_active, created_at').eq('id', product_id).execute()
         if not product_result.data:
             raise HTTPException(status_code=404, detail="Product not found")
         

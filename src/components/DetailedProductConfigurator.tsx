@@ -251,6 +251,10 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
           base_part_code: productDetails.product.base_part_code || "",
           product_image_url: productDetails.product.product_image_url || "",
           dimension_image_url: productDetails.product.dimension_image_url || "",
+          d1_mm: productDetails.product.d1_mm || 50,
+          h_mm: productDetails.product.h_mm || 50,
+          d2_mm: productDetails.product.d2_mm || 55,
+          cutout_mm: productDetails.product.cutout_mm || 50,
         },
       };
 

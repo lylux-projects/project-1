@@ -239,6 +239,14 @@ class DatasheetGenerator:
         product = product_data.get('product', {})
         description = product.get('description')
         
+        print(f"=== PRODUCT DEBUG IN PDF GENERATOR ===")
+        print(f"Product data keys: {list(product.keys())}")
+        print(f"D1: {product.get('d1_mm', 'NOT_FOUND')}")
+        print(f"H: {product.get('h_mm', 'NOT_FOUND')}")
+        print(f"D2: {product.get('d2_mm', 'NOT_FOUND')}")
+        print(f"Cutout: {product.get('cutout_mm', 'NOT_FOUND')}")
+        print(f"Full product data: {product}")
+        
         # Get product category from database
         product_category = product_data.get('product_category', 'DOWNLIGHT')
         print(f"=== PRODUCT CATEGORY DEBUG ===")
@@ -848,7 +856,7 @@ class DatasheetGenerator:
                                 <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
                                 <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
                                 <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
-                                <tr><td class="label-col">IP</td><td class="value-col">IP20</td></tr>
+                                <tr><td class="label-col">IP</td><td class="value-col">{selected_options.get('IP Rating', {}).get('option_label', 'IP20')}</td></tr>
                             </table>
                         </div>
 
@@ -859,8 +867,8 @@ class DatasheetGenerator:
                                 <tr><td class="label-col">CCT</td><td class="value-col">{selected_options.get('Colour Temperature', {}).get('option_label', '2700K')}</td></tr>
                                 <tr><td class="label-col">CRI</td><td class="value-col">{selected_options.get('CRI', {}).get('option_label', '90')}</td></tr>
                                 <tr><td class="label-col">LED Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm</td></tr>
-                                <tr><td class="label-col">System Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm-15%</td></tr>
-                                <tr><td class="label-col">Lifetime</td><td class="value-col">50000h@l80B10</td></tr>
+                                <tr><td class="label-col">System Output</td><td class="value-col">{(selected_variant.get('system_output', 440) * 0.85):.2f}lm</td></tr>
+                                <tr><td class="label-col">Lifetime</td><td class="value-col">50000 Hours</td></tr>
                                 <tr><td class="label-col">SDCM</td><td class="value-col">3</td></tr>
                             </table>
                         </div>
@@ -888,10 +896,10 @@ class DatasheetGenerator:
                         <div class="section">
                             <div class="section-header">DIMENSION</div>
                             <table class="spec-table">
-                                <tr><td class="label-col">D1</td><td class="value-col">50mm</td></tr>
-                                <tr><td class="label-col">H</td><td class="value-col">50mm</td></tr>
-                                <tr><td class="label-col">D2</td><td class="value-col">55mm</td></tr>
-                                <tr><td class="label-col">Cutout</td><td class="value-col">50mm</td></tr>
+                                <tr><td class="label-col">D1</td><td class="value-col">{product.get('d1_mm', 50)}mm</td></tr>
+                                <tr><td class="label-col">H</td><td class="value-col">{product.get('h_mm', 50)}mm</td></tr>
+                                <tr><td class="label-col">D2</td><td class="value-col">{product.get('d2_mm', 55)}mm</td></tr>
+                                <tr><td class="label-col">Cutout</td><td class="value-col">{product.get('cutout_mm', 50)}mm</td></tr>
                             </table>
                         </div>
                     </td>
