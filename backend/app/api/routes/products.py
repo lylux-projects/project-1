@@ -269,7 +269,7 @@ async def get_products_by_category(category_slug: str):
 
 @router.get("/product-details/{product_id}")
 async def get_product_details_new(product_id: int):
-    """Get detailed product information including global visual assets"""
+    """Get detailed product information including configurable features"""
     try:
         # Get product basic info
         product_result = supabase.table('products').select('id, category_id, name, base_part_code, description, product_image_url, dimension_image_url, d1_mm, h_mm, d2_mm, cutout_mm, is_active, created_at').eq('id', product_id).execute()
@@ -300,12 +300,10 @@ async def get_product_details_new(product_id: int):
         
         # SAFE: Get ALL accessories columns to see what exists
         try:
-            # First, just get all columns to see what's available
             accessories_result = supabase.table('accessories').select('*').eq('product_id', product_id).execute()
             
             # Add missing fields for compatibility with frontend/PDF
             for accessory in accessories_result.data:
-                # Add fields that might be missing
                 if 'image_url' not in accessory:
                     accessory['image_url'] = None
                 if 'price' not in accessory:
@@ -323,16 +321,38 @@ async def get_product_details_new(product_id: int):
                 
         except Exception as e:
             print(f"Error getting accessories: {e}")
-            # Return empty accessories if there's an issue
             accessories_result = type('MockResult', (), {'data': []})()
         
-        # Get product features
+        # Get product features INCLUDING configurable color features
         try:
             features_result = supabase.table('product_features').select('*').eq('product_id', product_id).order('display_order').execute()
         except Exception as e:
             print(f"Error getting features: {e}")
             features_result = type('MockResult', (), {'data': []})()
         
+        # Extract configurable color features
+        configurable_features = {
+            'housing_color': {'configurable': False, 'default_value': 'N/A'},
+            'reflector_color': {'configurable': False, 'default_value': 'N/A'},
+            'finish': {'configurable': False, 'default_value': 'N/A'}  # NEW: Add finish
+        }
+        
+        for feature in features_result.data:
+            if feature['feature_type'] == 'housing_color':
+                configurable_features['housing_color'] = {
+                    'configurable': feature.get('is_configurable', False),
+                    'default_value': feature.get('feature_value', 'N/A')
+                }
+            elif feature['feature_type'] == 'reflector_color':
+                configurable_features['reflector_color'] = {
+                    'configurable': feature.get('is_configurable', False),
+                    'default_value': feature.get('feature_value', 'N/A')
+                }
+            elif feature['feature_type'] == 'finish':  # NEW: Add finish handling
+                configurable_features['finish'] = {
+                    'configurable': feature.get('is_configurable', False),
+                    'default_value': feature.get('feature_value', 'N/A')
+                }
         # Get visual assets - BOTH product-specific AND global assets
         try:
             assets_result = supabase.table('visual_assets').select('*').or_(f'product_id.eq.{product_id},is_global.eq.true').order('display_order').execute()
@@ -362,6 +382,7 @@ async def get_product_details_new(product_id: int):
             "configuration_categories": configuration_categories,
             "accessories": accessories_result.data,
             "features": features_result.data,
+            "configurable_features": configurable_features,  # NEW: Add this line
             "visual_assets": visual_assets
         }
     except Exception as e:

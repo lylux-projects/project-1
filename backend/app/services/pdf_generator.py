@@ -258,6 +258,37 @@ class DatasheetGenerator:
         # Get selected options
         selected_options = product_data.get('selected_options', {})
         
+        # EXTRACT SDCM VALUE FROM SELECTED OPTIONS
+        print(f"=== SDCM DEBUG ===")
+        print(f"Selected options: {selected_options}")
+        
+        # Try to get SDCM from multiple possible sources
+        sdcm_value = "3"  # Default value
+        
+        # Method 1: Check if SDCM is in selected_options directly
+        if 'SDCM' in selected_options:
+            sdcm_data = selected_options['SDCM']
+            if isinstance(sdcm_data, dict):
+                sdcm_value = sdcm_data.get('option_label', '3')
+            else:
+                sdcm_value = str(sdcm_data)
+            print(f"✓ SDCM from selected_options['SDCM']: {sdcm_value}")
+        
+        # Method 2: Check if it's passed as a separate field
+        elif 'selected_sdcm' in product_data:
+            sdcm_value = str(product_data['selected_sdcm'])
+            print(f"✓ SDCM from product_data['selected_sdcm']: {sdcm_value}")
+        
+        # Method 3: Check if it's in the final part code
+        elif 'SDCM' in final_part_code:
+            import re
+            sdcm_match = re.search(r'SDCM(\d+)', final_part_code)
+            if sdcm_match:
+                sdcm_value = sdcm_match.group(1)
+                print(f"✓ SDCM extracted from part code: {sdcm_value}")
+        
+        print(f"Final SDCM value for PDF: {sdcm_value}")
+        
         product_features = product_data.get('product_features', [])
         print(f"=== MATERIAL DEBUG ===")
         print(f"Product features: {product_features}")
@@ -280,6 +311,32 @@ class DatasheetGenerator:
                 material_value = feature.get('feature_value', material_value)
                 print(f"✓ Material found: {material_value}")
                 break
+            
+        
+        housing_color_option = selected_options.get('Housing Color', {})
+        housing_color = "N/A"  # Default for non-configurable products
+        if housing_color_option and isinstance(housing_color_option, dict):
+            housing_color = housing_color_option.get('option_label', 'N/A')
+        print(f"=== HOUSING COLOR DEBUG ===")
+        print(f"Housing Color option: {housing_color_option}")
+        print(f"Final housing color: {housing_color}")
+        
+        # Get Reflector Color - Dynamic based on product configuration  
+        reflector_color_option = selected_options.get('Reflector Color', {})
+        reflector_color = "N/A"  # Default for non-configurable products
+        if reflector_color_option and isinstance(reflector_color_option, dict):
+            reflector_color = reflector_color_option.get('option_label', 'N/A')
+        print(f"=== REFLECTOR COLOR DEBUG ===")
+        print(f"Reflector Color option: {reflector_color_option}")
+        print(f"Final reflector color: {reflector_color}")
+        
+        finish_option = selected_options.get('Finish', {})
+        finish_value = "N/A"  # Default for non-configurable products
+        if finish_option and isinstance(finish_option, dict):
+            finish_value = finish_option.get('option_label', 'N/A')
+        print(f"=== FINISH DEBUG ===")
+        print(f"Finish option: {finish_option}")
+        print(f"Final finish: {finish_value}")
         
         light_distribution_image_url = ""
         beam_angle_option = selected_options.get('Beam Angle', {})
@@ -369,7 +426,7 @@ class DatasheetGenerator:
         print(f"Number of certification images: 2")
         print("✅ Certifications should now display in PDF")
     
-    # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
+        # TABLE-BASED LAYOUT FOR FLYING SAUCER - WITH FIXED CATEGORY RECTANGLE
         html_content = f'''<!DOCTYPE html>
     <html>
     <head>
@@ -737,11 +794,16 @@ class DatasheetGenerator:
             .light-distribution-image {{
                 max-width: 100%;
                 height: auto;
-                max-height: 80pt;
+                max-height: 60pt;
                 border: 1px solid #ddd;
                 border-radius: 2pt;
                 display: block;
                 margin: 0 auto;
+            }}
+
+            .light-distribution-container {{
+                max-height: 50pt;
+                overflow: hidden;
             }}
             
             /* Footer CSS */
@@ -876,9 +938,9 @@ class DatasheetGenerator:
                             <div class="section-header">GENERAL</div>
                             <table class="spec-table">
                                 <tr><td class="label-col">Material</td><td class="value-col">{material_value}</td></tr>
-                                <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
-                                <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
-                                <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
+                                <tr><td class="label-col">Finish</td><td class="value-col">{finish_value}</td></tr>
+                                <tr><td class="label-col">Housing Color</td><td class="value-col">{housing_color}</td></tr>
+                                <tr><td class="label-col">Reflector Colour</td><td class="value-col">{reflector_color}</td></tr>
                                 <tr><td class="label-col">IP</td><td class="value-col">{selected_options.get('IP Rating', {}).get('option_label', 'IP20')}</td></tr>
                             </table>
                         </div>
@@ -892,7 +954,7 @@ class DatasheetGenerator:
                                 <tr><td class="label-col">LED Output</td><td class="value-col">{selected_variant.get('system_output', 440)}lm</td></tr>
                                 <tr><td class="label-col">System Output</td><td class="value-col">{(selected_variant.get('system_output', 440) * 0.85):.2f}lm</td></tr>
                                 <tr><td class="label-col">Lifetime</td><td class="value-col">50000 Hours</td></tr>
-                                <tr><td class="label-col">SDCM</td><td class="value-col">3</td></tr>
+                                <tr><td class="label-col">SDCM</td><td class="value-col">{sdcm_value}</td></tr>
                             </table>
                         </div>
 
@@ -931,9 +993,9 @@ class DatasheetGenerator:
                         <!-- LIGHT DISTRIBUTION (NEW SECTION AT TOP) -->
                         <div class="section">
                             <div class="section-header">LIGHT DISTRIBUTION</div>
-                            <div class="light-distribution-container">
-                                {f'<img src="{light_distribution_image_url}" alt="Light Distribution Chart" class="light-distribution-image"/>' if light_distribution_image_url else '''
-                                <div style="height: 60pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
+                            <div style="text-align: center; margin: 5pt 0;">
+                                {f'<img src="{light_distribution_image_url}" alt="Light Distribution Chart" style="width: 100pt; height: 125pt; border: 1px solid #ddd; border-radius: 2pt; object-fit: contain; background-color: white;"/>' if light_distribution_image_url else '''
+                                <div style="height: 40pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
                                     Light Distribution Chart
                                 </div>'''}
                             </div>
