@@ -210,10 +210,28 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
         .filter(Boolean);
 
       // Build professional PDF request
+      console.log("=== FRONTEND FEATURES DEBUG ===");
+      console.log("productDetails.features:", productDetails.features);
+      console.log("Features length:", (productDetails.features || []).length);
+      if (productDetails.features && productDetails.features.length > 0) {
+        console.log("First feature:", productDetails.features[0]);
+        productDetails.features.forEach((feature, i) => {
+          console.log(`Feature ${i}:`, feature);
+          if (
+            feature.feature_label?.toLowerCase().includes("material") ||
+            feature.feature_name?.toLowerCase().includes("material")
+          ) {
+            console.log(`*** MATERIAL FEATURE FOUND: ${feature.feature_value}`);
+          }
+        });
+      }
+
       const pdfRequest = {
         product_name: productDetails.product.name,
         base_part_code: productDetails.product.base_part_code,
         final_part_code: currentPartCode,
+
+        product_features: productDetails.features || [],
 
         // Convert variants to match backend model
         variants: productDetails.variants.map((variant) => ({

@@ -15,6 +15,7 @@ class PDFGenerationRequest(BaseModel):
     product_name: str
     base_part_code: str
     final_part_code: Optional[str] = None
+    product_features: Optional[List[dict]] = []
     variants: List[dict]
     selected_variant_id: Optional[int] = None
     selected_variant_index: Optional[int] = 0

@@ -258,6 +258,29 @@ class DatasheetGenerator:
         # Get selected options
         selected_options = product_data.get('selected_options', {})
         
+        product_features = product_data.get('product_features', [])
+        print(f"=== MATERIAL DEBUG ===")
+        print(f"Product features: {product_features}")
+        for i, feature in enumerate(product_features):
+            print(f"Feature {i}: {feature}")
+            print(f"  Keys: {list(feature.keys())}")
+            if 'material' in str(feature).lower():
+                print(f"  *** FOUND MATERIAL FEATURE: {feature}")
+
+        material_value = "Die Cast Aluminium"  # Default value
+        for feature in product_features:
+            feature_label = feature.get('feature_label', '').lower()
+            feature_type = feature.get('feature_type', '').lower()
+            
+            # Check for material in label, type, or if it contains "material"
+            if (feature_label == 'material' or 
+                feature_label == 'body material' or 
+                feature_type == 'material' or
+                'material' in feature_label):
+                material_value = feature.get('feature_value', material_value)
+                print(f"✓ Material found: {material_value}")
+                break
+        
         light_distribution_image_url = ""
         beam_angle_option = selected_options.get('Beam Angle', {})
         if beam_angle_option and isinstance(beam_angle_option, dict):
@@ -852,7 +875,7 @@ class DatasheetGenerator:
                         <div class="section">
                             <div class="section-header">GENERAL</div>
                             <table class="spec-table">
-                                <tr><td class="label-col">Material</td><td class="value-col">Die Cast Aluminium</td></tr>
+                                <tr><td class="label-col">Material</td><td class="value-col">{material_value}</td></tr>
                                 <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
                                 <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
                                 <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
