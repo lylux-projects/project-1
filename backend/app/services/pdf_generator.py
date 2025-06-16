@@ -605,7 +605,8 @@ class DatasheetGenerator:
             }}
             
             .images-table td:last-child {{
-                text-align: center;
+                text-align: right;
+                padding-right: 0pt;
             }}
             
             .product-image, .dimension-image {{
@@ -924,8 +925,22 @@ class DatasheetGenerator:
             <!-- Images Section -->
             <table class="images-table">
                 <tr>
-                    <td>{f'<img src="{product_image_url}" alt="{product_name}" class="product-image"/>' if product_image_url else 'Product Image'}</td>
-                    <td>{f'<img src="{dimension_image_url}" alt="Technical Drawing" class="dimension-image"/>' if dimension_image_url else 'Technical Drawing'}</td>
+                    <td>
+                        <div style="text-align: left; margin: 5pt 0;">
+                            {f'<img src="{product_image_url}" alt="{product_name}" style="width: 200pt; height: 180pt; border: 1px solid #ddd; border-radius: 2pt; object-fit: contain; background-color: white;"/>' if product_image_url else '''
+                            <div style="width: 200pt; height: 180pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
+                                Product Image
+                            </div>'''}
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: right; margin: 5pt 0;">
+                            {f'<img src="{dimension_image_url}" alt="Technical Drawing" style="width: 200pt; height: 180pt; border: 1px solid #ddd; border-radius: 2pt; object-fit: contain; background-color: white;"/>' if dimension_image_url else '''
+                            <div style="width: 200pt; height: 180pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
+                                Technical Drawing
+                            </div>'''}
+                        </div>
+                    </td>
                 </tr>
             </table>
 
