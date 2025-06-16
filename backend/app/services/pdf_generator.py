@@ -311,6 +311,32 @@ class DatasheetGenerator:
                 material_value = feature.get('feature_value', material_value)
                 print(f"✓ Material found: {material_value}")
                 break
+            
+        
+        housing_color_option = selected_options.get('Housing Color', {})
+        housing_color = "N/A"  # Default for non-configurable products
+        if housing_color_option and isinstance(housing_color_option, dict):
+            housing_color = housing_color_option.get('option_label', 'N/A')
+        print(f"=== HOUSING COLOR DEBUG ===")
+        print(f"Housing Color option: {housing_color_option}")
+        print(f"Final housing color: {housing_color}")
+        
+        # Get Reflector Color - Dynamic based on product configuration  
+        reflector_color_option = selected_options.get('Reflector Color', {})
+        reflector_color = "N/A"  # Default for non-configurable products
+        if reflector_color_option and isinstance(reflector_color_option, dict):
+            reflector_color = reflector_color_option.get('option_label', 'N/A')
+        print(f"=== REFLECTOR COLOR DEBUG ===")
+        print(f"Reflector Color option: {reflector_color_option}")
+        print(f"Final reflector color: {reflector_color}")
+        
+        finish_option = selected_options.get('Finish', {})
+        finish_value = "N/A"  # Default for non-configurable products
+        if finish_option and isinstance(finish_option, dict):
+            finish_value = finish_option.get('option_label', 'N/A')
+        print(f"=== FINISH DEBUG ===")
+        print(f"Finish option: {finish_option}")
+        print(f"Final finish: {finish_value}")
         
         light_distribution_image_url = ""
         beam_angle_option = selected_options.get('Beam Angle', {})
@@ -568,7 +594,7 @@ class DatasheetGenerator:
                 border-collapse: collapse;
             }}
             
-            .images-table td {{
+            .images-table td {{ 
                 width: 50%;
                 padding: 5pt;
             }}
@@ -768,11 +794,16 @@ class DatasheetGenerator:
             .light-distribution-image {{
                 max-width: 100%;
                 height: auto;
-                max-height: 80pt;
+                max-height: 60pt;
                 border: 1px solid #ddd;
                 border-radius: 2pt;
                 display: block;
                 margin: 0 auto;
+            }}
+
+            .light-distribution-container {{
+                max-height: 50pt;
+                overflow: hidden;
             }}
             
             /* Footer CSS */
@@ -907,9 +938,9 @@ class DatasheetGenerator:
                             <div class="section-header">GENERAL</div>
                             <table class="spec-table">
                                 <tr><td class="label-col">Material</td><td class="value-col">{material_value}</td></tr>
-                                <tr><td class="label-col">Finish</td><td class="value-col">Powder Coated</td></tr>
-                                <tr><td class="label-col">RAL Code</td><td class="value-col">RAL9016</td></tr>
-                                <tr><td class="label-col">Reflector Colour</td><td class="value-col">Black</td></tr>
+                                <tr><td class="label-col">Finish</td><td class="value-col">{finish_value}</td></tr>
+                                <tr><td class="label-col">Housing Color</td><td class="value-col">{housing_color}</td></tr>
+                                <tr><td class="label-col">Reflector Colour</td><td class="value-col">{reflector_color}</td></tr>
                                 <tr><td class="label-col">IP</td><td class="value-col">{selected_options.get('IP Rating', {}).get('option_label', 'IP20')}</td></tr>
                             </table>
                         </div>
@@ -962,9 +993,9 @@ class DatasheetGenerator:
                         <!-- LIGHT DISTRIBUTION (NEW SECTION AT TOP) -->
                         <div class="section">
                             <div class="section-header">LIGHT DISTRIBUTION</div>
-                            <div class="light-distribution-container">
-                                {f'<img src="{light_distribution_image_url}" alt="Light Distribution Chart" class="light-distribution-image"/>' if light_distribution_image_url else '''
-                                <div style="height: 60pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
+                            <div style="text-align: center; margin: 5pt 0;">
+                                {f'<img src="{light_distribution_image_url}" alt="Light Distribution Chart" style="width: 100pt; height: 125pt; border: 1px solid #ddd; border-radius: 2pt; object-fit: contain; background-color: white;"/>' if light_distribution_image_url else '''
+                                <div style="height: 40pt; background-color: #f9f9f9; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #999;">
                                     Light Distribution Chart
                                 </div>'''}
                             </div>

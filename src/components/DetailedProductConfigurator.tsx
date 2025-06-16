@@ -63,19 +63,29 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
   const [selectedAccessories, setSelectedAccessories] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [currentPartCode, setCurrentPartCode] = useState("");
-  
+
   // SDCM state - kept separate for UI control
   const [selectedSDCM, setSelectedSDCM] = useState(3); // Default to 3
 
-  // Housing Color state
-  const [selectedHousingColor, setSelectedHousingColor] = useState("BLACK"); // Default to BLACK
+  // NEW: Dynamic Housing Color state based on product configuration
+  const [selectedHousingColor, setSelectedHousingColor] = useState("");
   const [customHousingColor, setCustomHousingColor] = useState("");
   const [showHousingCustomInput, setShowHousingCustomInput] = useState(false);
+  const [housingColorConfigurable, setHousingColorConfigurable] =
+    useState(false);
 
-  // Reflector Color state  
-  const [selectedReflectorColor, setSelectedReflectorColor] = useState("BLACK"); // Default to BLACK
+  // NEW: Dynamic Reflector Color state based on product configuration
+  const [selectedReflectorColor, setSelectedReflectorColor] = useState("");
   const [customReflectorColor, setCustomReflectorColor] = useState("");
-  const [showReflectorCustomInput, setShowReflectorCustomInput] = useState(false);
+  const [showReflectorCustomInput, setShowReflectorCustomInput] =
+    useState(false);
+  const [reflectorColorConfigurable, setReflectorColorConfigurable] =
+    useState(false);
+
+  const [selectedFinish, setSelectedFinish] = useState("");
+  const [customFinish, setCustomFinish] = useState("");
+  const [showFinishCustomInput, setShowFinishCustomInput] = useState(false);
+  const [finishConfigurable, setFinishConfigurable] = useState(false);
 
   useEffect(() => {
     loadProductDetails();
@@ -91,6 +101,35 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
         }
       });
       setSelectedOptions(defaults);
+
+      // NEW: Set up configurable features
+      const configurableFeatures = productDetails.configurable_features || {};
+
+      // Setup Housing Color
+      const housingConfig = configurableFeatures.housing_color || {};
+      setHousingColorConfigurable(housingConfig.configurable || false);
+      setSelectedHousingColor(
+        housingConfig.configurable
+          ? "BLACK"
+          : housingConfig.default_value || "N/A"
+      );
+
+      // Setup Reflector Color
+      const reflectorConfig = configurableFeatures.reflector_color || {};
+      setReflectorColorConfigurable(reflectorConfig.configurable || false);
+      setSelectedReflectorColor(
+        reflectorConfig.configurable
+          ? "BLACK"
+          : reflectorConfig.default_value || "N/A"
+      );
+
+      const finishConfig = configurableFeatures.finish || {};
+      setFinishConfigurable(finishConfig.configurable || false);
+      setSelectedFinish(
+        finishConfig.configurable
+          ? "POWDER COATED"
+          : finishConfig.default_value || "N/A"
+      );
     }
   }, [productDetails, selectedVariantId]);
 
@@ -98,7 +137,18 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
     if (selectedVariantId && Object.keys(selectedOptions).length > 0) {
       updatePriceAndPartCode();
     }
-  }, [selectedVariantId, selectedOptions, selectedAccessories, selectedSDCM, selectedHousingColor, customHousingColor, selectedReflectorColor, customReflectorColor]);
+  }, [
+    selectedVariantId,
+    selectedOptions,
+    selectedAccessories,
+    selectedSDCM,
+    selectedHousingColor,
+    customHousingColor,
+    selectedReflectorColor,
+    customReflectorColor,
+    selectedFinish, // NEW: Add finish dependencies
+    customFinish, // NEW: Add finish dependencies
+  ]);
 
   const loadProductDetails = async () => {
     try {
@@ -156,15 +206,45 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
     }
 
     // Add Housing Color to part code
-    const finalHousingColor = selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor;
-    if (finalHousingColor) {
-      partCodeParts.push(`H${finalHousingColor.replace(/\s+/g, '').toUpperCase()}`);
+    if (
+      housingColorConfigurable &&
+      selectedHousingColor &&
+      selectedHousingColor !== "N/A"
+    ) {
+      const finalHousingColor =
+        selectedHousingColor === "CUSTOM"
+          ? customHousingColor
+          : selectedHousingColor;
+      if (finalHousingColor && finalHousingColor.trim() !== "") {
+        partCodeParts.push(
+          `H${finalHousingColor.replace(/\s+/g, "").toUpperCase()}`
+        );
+      }
     }
 
     // Add Reflector Color to part code
-    const finalReflectorColor = selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor;
-    if (finalReflectorColor) {
-      partCodeParts.push(`R${finalReflectorColor.replace(/\s+/g, '').toUpperCase()}`);
+    if (
+      reflectorColorConfigurable &&
+      selectedReflectorColor &&
+      selectedReflectorColor !== "N/A"
+    ) {
+      const finalReflectorColor =
+        selectedReflectorColor === "CUSTOM"
+          ? customReflectorColor
+          : selectedReflectorColor;
+      if (finalReflectorColor && finalReflectorColor.trim() !== "") {
+        partCodeParts.push(
+          `R${finalReflectorColor.replace(/\s+/g, "").toUpperCase()}`
+        );
+      }
+    }
+
+    if (finishConfigurable && selectedFinish && selectedFinish !== "N/A") {
+      const finalFinish =
+        selectedFinish === "CUSTOM" ? customFinish : selectedFinish;
+      if (finalFinish && finalFinish.trim() !== "") {
+        partCodeParts.push(`F${finalFinish.replace(/\s+/g, "").toUpperCase()}`);
+      }
     }
 
     // Add accessory prices
@@ -196,6 +276,16 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
     } else {
       setShowReflectorCustomInput(false);
       setCustomReflectorColor("");
+    }
+  };
+
+  const handleFinishChange = (finish) => {
+    setSelectedFinish(finish);
+    if (finish === "CUSTOM") {
+      setShowFinishCustomInput(true);
+    } else {
+      setShowFinishCustomInput(false);
+      setCustomFinish("");
     }
   };
 
@@ -251,23 +341,57 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       }
 
       // ADD HOUSING COLOR TO SELECTED OPTIONS
-      const finalHousingColor = selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor;
-      if (finalHousingColor) {
+      const finalHousingColor = housingColorConfigurable
+        ? selectedHousingColor === "CUSTOM"
+          ? customHousingColor
+          : selectedHousingColor
+        : selectedHousingColor;
+
+      if (selectedHousingColor) {
         selectedOptionsWithDetails["Housing Color"] = {
           option_label: finalHousingColor,
           price_modifier: 0,
-          part_code_suffix: `H${finalHousingColor.replace(/\s+/g, '').toUpperCase()}`,
+          part_code_suffix:
+            housingColorConfigurable && finalHousingColor !== "N/A"
+              ? `H${finalHousingColor.replace(/\s+/g, "").toUpperCase()}`
+              : "",
           option_image_url: "",
         };
       }
 
       // ADD REFLECTOR COLOR TO SELECTED OPTIONS
-      const finalReflectorColor = selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor;
-      if (finalReflectorColor) {
+      const finalReflectorColor = reflectorColorConfigurable
+        ? selectedReflectorColor === "CUSTOM"
+          ? customReflectorColor
+          : selectedReflectorColor
+        : selectedReflectorColor;
+
+      if (selectedReflectorColor) {
         selectedOptionsWithDetails["Reflector Color"] = {
           option_label: finalReflectorColor,
           price_modifier: 0,
-          part_code_suffix: `R${finalReflectorColor.replace(/\s+/g, '').toUpperCase()}`,
+          part_code_suffix:
+            reflectorColorConfigurable && finalReflectorColor !== "N/A"
+              ? `R${finalReflectorColor.replace(/\s+/g, "").toUpperCase()}`
+              : "",
+          option_image_url: "",
+        };
+      }
+
+      const finalFinish = finishConfigurable
+        ? selectedFinish === "CUSTOM"
+          ? customFinish
+          : selectedFinish
+        : selectedFinish;
+
+      if (selectedFinish) {
+        selectedOptionsWithDetails["Finish"] = {
+          option_label: finalFinish,
+          price_modifier: 0,
+          part_code_suffix:
+            finishConfigurable && finalFinish !== "N/A"
+              ? `F${finalFinish.replace(/\s+/g, "").toUpperCase()}`
+              : "",
           option_image_url: "",
         };
       }
@@ -456,8 +580,17 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
       selected_options: selectedOptions,
       selected_accessories: selectedAccessories,
       selected_sdcm: selectedSDCM,
-      selected_housing_color: selectedHousingColor === "CUSTOM" ? customHousingColor : selectedHousingColor,
-      selected_reflector_color: selectedReflectorColor === "CUSTOM" ? customReflectorColor : selectedReflectorColor,
+      selected_housing_color:
+        selectedHousingColor === "CUSTOM"
+          ? customHousingColor
+          : selectedHousingColor,
+      selected_reflector_color:
+        selectedReflectorColor === "CUSTOM"
+          ? customReflectorColor
+          : selectedReflectorColor,
+      // NEW: Add finish to configuration
+      selected_finish:
+        selectedFinish === "CUSTOM" ? customFinish : selectedFinish,
       configuration_name: `${productDetails?.product.name} Configuration`,
     };
 
@@ -706,6 +839,7 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
             </div>
 
             {/* Housing Color Selection */}
+            {/* Housing Color Selection - Dynamic based on product configuration */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
               <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
                 <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
@@ -713,47 +847,70 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                 </span>
                 Housing Color
                 <span className="text-red-500 ml-2 text-lg">*</span>
+                {!housingColorConfigurable && (
+                  <span className="ml-4 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                    Fixed for this product
+                  </span>
+                )}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
-                  <button
-                    key={colorValue}
-                    onClick={() => handleHousingColorChange(colorValue)}
-                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
-                      selectedHousingColor === colorValue
-                        ? "border-blue-500 bg-blue-50 shadow-lg"
-                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
-                    }`}
-                  >
-                    <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
-                      {colorValue === "CUSTOM" && <Edit3 className="w-4 h-4 mr-2" />}
-                      {colorValue}
+
+              {housingColorConfigurable ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
+                      <button
+                        key={colorValue}
+                        onClick={() => handleHousingColorChange(colorValue)}
+                        className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                          selectedHousingColor === colorValue
+                            ? "border-blue-500 bg-blue-50 shadow-lg"
+                            : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                        }`}
+                      >
+                        <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
+                          {colorValue === "CUSTOM" && (
+                            <Edit3 className="w-4 h-4 mr-2" />
+                          )}
+                          {colorValue}
+                        </div>
+                        {selectedHousingColor === colorValue && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle className="w-5 h-5 text-blue-500" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {showHousingCustomInput && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Enter Custom Housing Color:
+                      </label>
+                      <input
+                        type="text"
+                        value={customHousingColor}
+                        onChange={(e) => setCustomHousingColor(e.target.value)}
+                        placeholder="e.g., Silver, Bronze, RAL5015..."
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
+                      />
                     </div>
-                    {selectedHousingColor === colorValue && (
-                      <div className="absolute top-2 right-2">
-                        <CheckCircle className="w-5 h-5 text-blue-500" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {showHousingCustomInput && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Enter Custom Housing Color:
-                  </label>
-                  <input
-                    type="text"
-                    value={customHousingColor}
-                    onChange={(e) => setCustomHousingColor(e.target.value)}
-                    placeholder="e.g., Silver, Bronze, RAL5015..."
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
-                  />
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-6 border-2 border-gray-300 rounded-xl text-center bg-gray-50 cursor-not-allowed">
+                    <div className="text-lg font-semibold text-gray-500 mb-2">
+                      {selectedHousingColor}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Housing color is fixed for this product
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Reflector Color Selection */}
+            {/* Reflector Color Selection - Dynamic based on product configuration */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
               <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
                 <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
@@ -761,42 +918,139 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                 </span>
                 Reflector Color
                 <span className="text-red-500 ml-2 text-lg">*</span>
+                {!reflectorColorConfigurable && (
+                  <span className="ml-4 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                    Fixed for this product
+                  </span>
+                )}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
-                  <button
-                    key={colorValue}
-                    onClick={() => handleReflectorColorChange(colorValue)}
-                    className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
-                      selectedReflectorColor === colorValue
-                        ? "border-blue-500 bg-blue-50 shadow-lg"
-                        : "border-slate-200 hover:border-slate-300 hover:shadow-md"
-                    }`}
-                  >
-                    <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
-                      {colorValue === "CUSTOM" && <Edit3 className="w-4 h-4 mr-2" />}
-                      {colorValue}
+
+              {reflectorColorConfigurable ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {["BLACK", "WHITE", "CUSTOM"].map((colorValue) => (
+                      <button
+                        key={colorValue}
+                        onClick={() => handleReflectorColorChange(colorValue)}
+                        className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                          selectedReflectorColor === colorValue
+                            ? "border-blue-500 bg-blue-50 shadow-lg"
+                            : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                        }`}
+                      >
+                        <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
+                          {colorValue === "CUSTOM" && (
+                            <Edit3 className="w-4 h-4 mr-2" />
+                          )}
+                          {colorValue}
+                        </div>
+                        {selectedReflectorColor === colorValue && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle className="w-5 h-5 text-blue-500" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {showReflectorCustomInput && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Enter Custom Reflector Color:
+                      </label>
+                      <input
+                        type="text"
+                        value={customReflectorColor}
+                        onChange={(e) =>
+                          setCustomReflectorColor(e.target.value)
+                        }
+                        placeholder="e.g., Silver, Bronze, RAL5015..."
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
+                      />
                     </div>
-                    {selectedReflectorColor === colorValue && (
-                      <div className="absolute top-2 right-2">
-                        <CheckCircle className="w-5 h-5 text-blue-500" />
-                      </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-6 border-2 border-gray-300 rounded-xl text-center bg-gray-50 cursor-not-allowed">
+                    <div className="text-lg font-semibold text-gray-500 mb-2">
+                      {selectedReflectorColor}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Reflector color is fixed for this product
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center">
+                <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                  {(productDetails.configuration_categories?.length || 0) + 5}
+                </span>
+                Finish
+                <span className="text-red-500 ml-2 text-lg">*</span>
+                {!finishConfigurable && (
+                  <span className="ml-4 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                    Fixed for this product
+                  </span>
+                )}
+              </h3>
+
+              {finishConfigurable ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {["POWDER COATED", "ANODIZED", "CUSTOM"].map(
+                      (finishValue) => (
+                        <button
+                          key={finishValue}
+                          onClick={() => handleFinishChange(finishValue)}
+                          className={`group relative p-6 border-2 rounded-xl text-center transition-all duration-200 ${
+                            selectedFinish === finishValue
+                              ? "border-blue-500 bg-blue-50 shadow-lg"
+                              : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                          }`}
+                        >
+                          <div className="text-lg font-semibold text-slate-900 mb-2 flex items-center justify-center">
+                            {finishValue === "CUSTOM" && (
+                              <Edit3 className="w-4 h-4 mr-2" />
+                            )}
+                            {finishValue}
+                          </div>
+                          {selectedFinish === finishValue && (
+                            <div className="absolute top-2 right-2">
+                              <CheckCircle className="w-5 h-5 text-blue-500" />
+                            </div>
+                          )}
+                        </button>
+                      )
                     )}
-                  </button>
-                ))}
-              </div>
-              {showReflectorCustomInput && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Enter Custom Reflector Color:
-                  </label>
-                  <input
-                    type="text"
-                    value={customReflectorColor}
-                    onChange={(e) => setCustomReflectorColor(e.target.value)}
-                    placeholder="e.g., Silver, Bronze, RAL5015..."
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
-                  />
+                  </div>
+                  {showFinishCustomInput && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Enter Custom Finish:
+                      </label>
+                      <input
+                        type="text"
+                        value={customFinish}
+                        onChange={(e) => setCustomFinish(e.target.value)}
+                        placeholder="e.g., Brushed Chrome, Matte Black..."
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-6 border-2 border-gray-300 rounded-xl text-center bg-gray-50 cursor-not-allowed">
+                    <div className="text-lg font-semibold text-gray-500 mb-2">
+                      {selectedFinish}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Finish is fixed for this product
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -956,9 +1210,26 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                 {/* Housing Color Display */}
                 {selectedHousingColor && (
                   <div className="flex justify-between py-3 border-b border-slate-100">
-                    <span className="text-slate-600 font-medium">Housing Color:</span>
-                    <span className="font-semibold text-slate-900">
-                      {selectedHousingColor === "CUSTOM" ? customHousingColor || "Custom" : selectedHousingColor}
+                    <span className="text-slate-600 font-medium">
+                      Housing Color:
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        housingColorConfigurable
+                          ? "text-slate-900"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {housingColorConfigurable
+                        ? selectedHousingColor === "CUSTOM"
+                          ? customHousingColor || "Custom"
+                          : selectedHousingColor
+                        : selectedHousingColor}
+                      {!housingColorConfigurable && (
+                        <span className="text-xs text-slate-400 ml-2">
+                          (Fixed)
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
@@ -966,9 +1237,48 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
                 {/* Reflector Color Display */}
                 {selectedReflectorColor && (
                   <div className="flex justify-between py-3 border-b border-slate-100">
-                    <span className="text-slate-600 font-medium">Reflector Color:</span>
-                    <span className="font-semibold text-slate-900">
-                      {selectedReflectorColor === "CUSTOM" ? customReflectorColor || "Custom" : selectedReflectorColor}
+                    <span className="text-slate-600 font-medium">
+                      Reflector Color:
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        reflectorColorConfigurable
+                          ? "text-slate-900"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {reflectorColorConfigurable
+                        ? selectedReflectorColor === "CUSTOM"
+                          ? customReflectorColor || "Custom"
+                          : selectedReflectorColor
+                        : selectedReflectorColor}
+                      {!reflectorColorConfigurable && (
+                        <span className="text-xs text-slate-400 ml-2">
+                          (Fixed)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                {selectedFinish && (
+                  <div className="flex justify-between py-3 border-b border-slate-100">
+                    <span className="text-slate-600 font-medium">Finish:</span>
+                    <span
+                      className={`font-semibold ${
+                        finishConfigurable ? "text-slate-900" : "text-slate-500"
+                      }`}
+                    >
+                      {finishConfigurable
+                        ? selectedFinish === "CUSTOM"
+                          ? customFinish || "Custom"
+                          : selectedFinish
+                        : selectedFinish}
+                      {!finishConfigurable && (
+                        <span className="text-xs text-slate-400 ml-2">
+                          (Fixed)
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
@@ -1062,4 +1372,3 @@ const EnhancedProductConfigurator = ({ productId = 1, onBack = () => {} }) => {
 };
 
 export default EnhancedProductConfigurator;
-                  
