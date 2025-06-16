@@ -594,7 +594,7 @@ class DatasheetGenerator:
                 border-collapse: collapse;
             }}
             
-            .images-table td {{
+            .images-table td {{ 
                 width: 50%;
                 padding: 5pt;
             }}
